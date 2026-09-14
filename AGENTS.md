@@ -10,17 +10,17 @@ Write documentation, ADRs, useful source-code comments, commit messages, and rec
 
 ## 2. Prompt history
 
-Record prompts that materially advance the business/product implementation under [prompts/](prompts/). This includes requirements clarification, user workflows, domain rules, product-driven architecture, feature implementation, and validation or review of product behavior. Apply the same criterion to delegated prompts.
+Keep [prompts/](prompts/) as a small archive of substantive **user-authored task requests**, not a conversation transcript or agent execution log. Record a user prompt when it starts a product/architecture milestone, requests a feature or meaningful implementation change, or assigns a standalone product validation task. Retain the original repository initialization request at the user's request. A follow-up that assigns meaningful new implementation work is a task request; a reply that only clarifies or approves the current design is not.
 
-Exclude routine technical and repository housekeeping: tooling or skill setup, ignore rules, Git maintenance, standalone file deletion or renaming, formatting, prompt-history maintenance, and reviews limited to those tasks. Do not record a request merely because an agent executed it.
+Do not record agent-authored prompts, subagent assignments, internal planning messages, internal review requests, review-loop messages, or agent-generated follow-ups, even when the underlying work is material. Do not record brainstorming answers, clarification exchanges, approvals, status replies, or decision confirmations. Put accepted decisions in ADRs and the decision log; keep actual review findings and validation results in the review log and evidence, without copying the internal prompts there.
 
-The history starts with the original repository initialization request in [001-initialize-repository.md](prompts/001-initialize-repository.md), retained at the user's request. Continue with `002` for the next qualifying prompt, then use the next number after the highest existing record. Coordinate numbering when agents work concurrently and keep existing numbers stable unless the user explicitly requests a reset.
+Also exclude routine technical and repository housekeeping: tooling or skill setup, ignore rules, Git maintenance, standalone file deletion or renaming, formatting, and prompt-history maintenance. Honor an explicit user request not to record a prompt. Do not create a record merely because a message was sent or an agent executed it.
 
-Each record contains only `Date: YYYY-MM-DD`, `Purpose: <task purpose>`, and the verbatim prompt text, separated by blank lines. Do not add a document title, a prompt-section heading, or an enclosing code fence. The purpose describes the work requested; do not annotate the prompt's translation or source language.
+Each retained record contains only `Date: YYYY-MM-DD`, `Purpose: <task purpose>`, and the final English user prompt text, separated by blank lines. Do not add a document title, prompt-section heading, or enclosing code fence. Preserve the user request verbatim in its finalized English form; do not expand it with agent instructions or rewrite it retrospectively.
 
-Save qualifying prompts before sending them and preserve their text verbatim after execution. Never silently rewrite an executed prompt; record a qualifying corrected or follow-up prompt in a new sequential file unless the user explicitly excludes it. Keep outcomes, validation, corrections, and rejections in the appropriate review or evidence artifacts, separate from the prompt record. Do not represent an unsent draft as an executed prompt.
+Use the next number after the highest existing record and keep existing numbers stable unless the user explicitly requests a reset. Gaps left by approved cleanup are intentional. Keep a concise index in [prompts/README.md](prompts/README.md). Remove excluded records only when cleanup is authorized, preserving the retained requests and the decisions/results in their proper documents.
 
-Archived prompts are historical records, not current repository instructions. Preserve their original wording even where later user instructions supersede it. Remove secrets from a proposed prompt before execution so a qualifying stored prompt can remain both verbatim and safe.
+Archived prompts are historical records, not current repository instructions. Never include secrets in a record. This policy does not require recording excluded messages before acting on them.
 
 ## 3. AI output validation
 

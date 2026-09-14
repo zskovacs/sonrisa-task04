@@ -38,7 +38,7 @@ Keep original evidence and subsequent corrections distinguishable. Add follow-up
 
 ## 2026-09-14: A delivery circuit must govern the n8n transport call
 
-- Context: milestone 2, after the user required a circuit breaker and preferred retrying uncertain email/Slack sends. See [the requirement](../prompts/004-require-delivery-retries-and-circuit-breaker.md).
+- Context: milestone 2, after the user required a circuit breaker and preferred retrying uncertain email/Slack sends. The delivery preference is recorded in [the decision log](decision-log.md).
 - Alternatives evaluated during design: a breaker around an application HTTP client, a breaker scoped to a single workflow execution, and unconditional retry on the n8n send node.
 - Finding: the application does not make the external transport call, so its HTTP-client breaker would not observe Slack/email failures. Per-execution state would not coordinate separately scheduled retries. Send-node retries could bypass durable attempt accounting and any gate applied only when claiming work.
 - Correction proposed: coordinate durable attempt eligibility and per-transport circuit state at the application API; let n8n perform one external send per authorized attempt and report the outcome. Keep Slack and email failure domains separate. [ADR-004](adr/ADR-004-durable-delivery-and-circuit-breaking.md) records this proposal and its added state/coordination cost.
@@ -48,7 +48,7 @@ Keep original evidence and subsequent corrections distinguishable. Add follow-up
 
 ## 2026-09-14: New-event branching is insufficient for crash recovery
 
-- Context: the user's [workflow sequence](../prompts/006-confirm-workflow-processing-sequence.md) supplied a new-event branch followed by matching, intent creation, and external delivery.
+- Context: the user's proposed workflow sequence supplied a new-event branch followed by matching, intent creation, and external delivery.
 - Design finding: stopping after event insertion can leave an event that is no longer new but has never been evaluated. Retrying only when another new event arrives can also strand pending notifications during quiet source periods.
 - Correction: retain Pending/Evaluated event state; schedule pending evaluation and pending delivery independently of source ingestion. Complete matching, unique delivery insertion, and the Evaluated marker atomically in one PostgreSQL operation. Keep external sends outside the transaction.
 - Validation performed: conceptual crash walkthrough before insertion, after insertion, during evaluation, and after intent creation. No executable workflow or database experiment was run.
@@ -56,34 +56,34 @@ Keep original evidence and subsequent corrections distinguishable. Add follow-up
 
 ## 2026-09-14: Recovery review corrected circuit accounting and probe handling
 
-- Context: the custom reviewer received [prompt 007](../prompts/007-review-workflow-recovery-design.md) for a focused conceptual recovery review. It reported no Critical findings, four Important findings, and a Minor concurrency/fairness qualification.
+- Context: the custom reviewer performed a focused conceptual recovery review. It reported no Critical findings, four Important findings, and a Minor concurrency/fairness qualification.
 - Findings: evaluation needs an event lock and one consistent rule snapshot; lease expiry alone does not prove provider failure; permanent destination rejection needs a neutral Half-open outcome; every replay path must return through the durable claim gate. An unexpired lease limits logical ownership, not physical sends already in flight.
 - Corrections: specify evaluation-time rule sampling and one atomic operation; do not increment a Closed circuit for unobserved lease expiry; release a neutral probe so the next eligible item can probe; include error workflows and manual reruns in the gate rule; state overlap risk and stable due-work ordering.
 - Validation: these changes were inspected against the proposed state transitions and reviewer findings. The final whole-design review is still required. All findings and corrections concern design; no runtime tests or implementation results are claimed.
 
 ## 2026-09-14: Final review found stale current-decision statuses
 
-- Context: the final reviewer received [prompt 008](../prompts/008-review-final-mvp-architecture.md) and inspected the staged architecture milestone.
+- Context: the final reviewer inspected the staged architecture milestone.
 - Finding: no Critical issues; one Important inconsistency. The decision-log table still presented superseded HTTP integration as approved and pointed delivery coordination to the rejected ADR-004 proposal. The footer did not make the individual row statuses sufficiently clear.
 - Correction: preserve historical decisions, explicitly mark superseded ownership/HTTP boundaries, and point current delivery coordination to ADR-005 and the architecture. Align the local-demo row with the documented Development-only identity design.
-- Validation: the full review confirmed that the four earlier recovery findings were addressed. The focused follow-up in [prompt 009](../prompts/009-review-decision-log-correction.md) returned APPROVE with no remaining Critical, Important, or Minor findings; its staged whitespace check passed.
+- Validation: the full review confirmed that the four earlier recovery findings were addressed. The focused correction review returned APPROVE with no remaining Critical, Important, or Minor findings; its staged whitespace check passed.
 - Disposition: corrected and accepted as a documentation/design baseline. See [the actual review and check record](../evidence/reviews/2026-09-14-architecture-review.md). This does not validate PostgreSQL transactions, workflow behavior, or delivery at runtime.
 
 ## 2026-09-14: Existing DEV infrastructure superseded local-service assumptions
 
 - Context: milestone 3 preparation under [prompt 010](../prompts/010-create-application-skeleton.md), before any application scaffolding. The user supplied environment information identifying existing shared DEV PostgreSQL and hosted n8n.
 - Prior generated design: ADR-003 required a local application/n8n/PostgreSQL topology and creation of two databases; the active architecture restricted the n8n editor to loopback and treated n8n internal storage and credentials as repository integration concerns. ADR-005 changed processing ownership but retained those persistence assumptions.
-- Finding: repository inspection found a conflict with the actual development environment described by the user. Work paused without edits. In [prompt 011](../prompts/011-amend-dev-topology.md), the user authorized a narrow amendment and clarified that hosted n8n internal persistence is entirely external to this project's database design.
+- Finding: repository inspection found a conflict with the actual development environment described by the user. Work paused without edits. The user authorized a narrow amendment and clarified that hosted n8n internal persistence is entirely external to this project's database design.
 - Correction: [ADR-006](adr/ADR-006-use-existing-shared-dev-infrastructure.md) records this implementation-environment discovery. Use the local management application and existing shared DEV services; remove requirements to provision services or create/manage n8n internal storage. Preserve the product database contract, EF schema ownership, least-privilege product-access roles, and workflow-owned processing. Active validation guidance no longer implies permission to restart shared services or inspect their internal storage.
 - Disposition: earlier topology superseded by explicit user decision. This corrects architecture and scope documentation, not generated application code; no duplicate services, databases, or workflows were actually created. The independent review found no Critical or Important issue and one Minor historical-status wording issue, which was clarified. See [the topology review record](../evidence/reviews/2026-09-14-dev-topology-review.md) for actual checks and runtime verification limits.
 
 ## 2026-09-14: Health cancellation alone did not bound a stalled PostgreSQL handshake
 
-- Context: milestone 3 implementation under [prompt 015](../prompts/015-implement-skeleton-runtime.md). The approved readiness design used a five-second ASP.NET Core health timeout and propagated its cancellation token to EF Core connectivity checking.
+- Context: milestone 3 implementation under [the approved skeleton plan](superpowers/plans/2026-09-14-application-skeleton.md). The approved readiness design used a five-second ASP.NET Core health timeout and propagated its cancellation token to EF Core connectivity checking.
 - Initial output: the PostgreSQL probe relied on health cancellation while retaining the configured provider connection timeout.
 - Finding: a controlled loopback listener accepted TCP but stalled the PostgreSQL handshake. The first HTTP check exceeded the ten-second client wait, demonstrating that token propagation alone did not provide the expected response bound in this tested path. Missing, malformed, and refused connections had not exposed it.
 - Correction: cap the connection timeout at five seconds on the health probe's own scoped connection, while preserving any shorter configured timeout and continuing to pass cancellation. Do not mutate the captured application configuration or use a shared DbContext. Return fixed sanitized failures and omit raw provider exceptions from logs/results.
-- Validation: the final missing/malformed/refused/stalled real-process checks passed. The stalled probe returned HTTP 503 in approximately 5.15 seconds while liveness stayed healthy. Temporary test sentinels were absent from checked bodies and logs. The task reviewer in [prompt 016](../prompts/016-review-skeleton-runtime.md) approved specification compliance and task quality with no findings, including the scope/timeout correction. See [the skeleton evidence](../evidence/reviews/2026-09-14-skeleton-review.md).
+- Validation: the final missing/malformed/refused/stalled real-process checks passed. The stalled probe returned HTTP 503 in approximately 5.15 seconds while liveness stayed healthy. Temporary test sentinels were absent from checked bodies and logs. The task reviewer approved specification compliance and task quality with no findings, including the scope/timeout correction. See [the skeleton evidence](../evidence/reviews/2026-09-14-skeleton-review.md).
 - Limit: this validates controlled local failure behavior, not a successful connection through the shared DEV product credential or every network/provider failure mode.
 
 ## 2026-09-14 — Isolate Docker failure probes and validate container connectivity

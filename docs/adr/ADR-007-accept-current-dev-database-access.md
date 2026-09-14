@@ -2,7 +2,7 @@
 
 ## Status
 
-**Accepted.** Recorded on 2026-09-14 after the user clarified the intended DEV-only administrative access in [prompt 025](../../prompts/025-accept-current-dev-database-access.md). This narrowly supersedes ADR-006's requirement to establish restricted runtime access and secure transport before accepting the current skeleton in DEV. It does not supersede production requirements or the product ownership contract.
+**Accepted.** Recorded on 2026-09-14 after the user clarified the intended DEV-only administrative access. This narrowly supersedes ADR-006's requirement to establish restricted runtime access and secure transport before accepting the current skeleton in DEV. It does not supersede production requirements or the product ownership contract.
 
 ## Context
 

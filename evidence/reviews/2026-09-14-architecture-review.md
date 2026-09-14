@@ -8,9 +8,9 @@ Documentation-only milestone 2, based on commit `bd40ac84e2f065fd5f41a886ded33d1
 
 ## Actual review results
 
-- [Focused recovery review](../../prompts/007-review-workflow-recovery-design.md): no Critical findings; four Important corrections covering atomic rule snapshots, lease-expiry accounting, neutral Half-open outcomes, and gated replay. A Minor note qualified logical lease ownership and due-work fairness. The design was corrected.
-- [Whole-design review](../../prompts/008-review-final-mvp-architecture.md): REQUEST_CHANGES; no Critical findings and one Important decision-log ambiguity. The reviewer confirmed the earlier recovery corrections and the current n8n/direct-database boundary.
-- [Correction review](../../prompts/009-review-decision-log-correction.md): APPROVE; no Critical, Important, or Minor findings remain. The reviewer checked the corrected statuses against ADRs and scope, and ran `git diff --cached --check` successfully.
+- Focused recovery review: no Critical findings; four Important corrections covering atomic rule snapshots, lease-expiry accounting, neutral Half-open outcomes, and gated replay. A Minor note qualified logical lease ownership and due-work fairness. The design was corrected.
+- Whole-design review: REQUEST_CHANGES; no Critical findings and one Important decision-log ambiguity. The reviewer confirmed the earlier recovery corrections and the current n8n/direct-database boundary.
+- Correction review: APPROVE; no Critical, Important, or Minor findings remain. The reviewer checked the corrected statuses against ADRs and scope, and ran `git diff --cached --check` successfully.
 
 ## Actual controller checks
 

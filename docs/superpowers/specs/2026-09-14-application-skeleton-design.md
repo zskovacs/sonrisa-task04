@@ -1,6 +1,6 @@
 # Application skeleton specification
 
-Approved design: [prompt 013](../../../prompts/013-approve-skeleton-design-and-execution.md). Scope: milestone 3 only. ADR-003's retained UI/persistence choices, ADR-005's processing boundary, and [ADR-006](../../adr/ADR-006-use-existing-shared-dev-infrastructure.md) govern this work. The user authorized specification/plan review followed by implementation without another architecture approval.
+User-approved skeleton design following [the milestone request](../../../prompts/010-create-application-skeleton.md). Scope: milestone 3 only. ADR-003's retained UI/persistence choices, ADR-005's processing boundary, and [ADR-006](../../adr/ADR-006-use-existing-shared-dev-infrastructure.md) govern this work. The user authorized specification/plan review followed by implementation without another architecture approval.
 
 ## Deliverable and structure
 

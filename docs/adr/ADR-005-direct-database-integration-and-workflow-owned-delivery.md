@@ -2,7 +2,7 @@
 
 ## Status
 
-**Accepted boundary correction.** Recorded on 2026-09-14 from [the user's explicit clarification](../../prompts/005-revise-n8n-and-application-boundaries.md). No code or workflows exist. The user subsequently confirmed n8n ownership of the complete event-processing sequence in [prompt 006](../../prompts/006-confirm-workflow-processing-sequence.md). The final proposed processing/state contracts are documented in [the system design](../04-architecture.md).
+**Accepted boundary correction.** Recorded on 2026-09-14 from the user's explicit clarification. No code or workflows exist. The user subsequently confirmed n8n ownership of the complete event-processing sequence during the design discussion. The final proposed processing/state contracts are documented in [the system design](../04-architecture.md).
 
 This supersedes the application/HTTP ownership assumptions in ADR-001 and ADR-002, and the HTTP integration and exclusive product-database access portions of ADR-003. Their other choices remain applicable. It rejects the application-owned circuit/claim mechanism proposed in ADR-004; that mechanism was never implemented or accepted as a complete design.
 

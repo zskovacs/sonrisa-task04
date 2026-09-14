@@ -108,7 +108,7 @@ Readiness uses a five-second health timeout and caps the scoped provider connect
 | `Dockerfile`, `compose.yaml`, `.dockerignore` | Application-only container build and local testing. |
 | `.env.example` | Empty runtime configuration key; real `.env` stays ignored. |
 | `docs/` | Product scope, architecture, decisions, specification, and implementation plan. |
-| `prompts/` | Verbatim prompts that advance product implementation. |
+| `prompts/` | Substantive user-authored task requests; no internal review or discussion transcript. |
 | `evidence/` | Actual review and validation records. |
 | `n8n/workflows/` | Reserved for future reviewed product workflow exports. |
 | `infra/` | Reserved; no infrastructure provisioning is needed for this DEV milestone. |

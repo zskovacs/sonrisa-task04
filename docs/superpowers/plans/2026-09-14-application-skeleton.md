@@ -19,7 +19,7 @@
 - Five-second readiness timeout, cancellation propagation, fixed sanitized failures, and no raw exception/connection logging.
 - No separate test project or speculative package. Use real-process smoke checks and CLI/IDE verification.
 - Preserve unrelated `.idea/` files and the existing approved documentation amendment. Use the current feature branch/check-out for Rider continuity; do not move existing work.
-- User approval in prompt 013 permits reviewed execution without another architecture gate. Ask for credentials only after independent validation is complete.
+- The user approved reviewed execution of the skeleton specification without another architecture gate. Ask for credentials only after independent validation is complete.
 
 ## Task 1: Runnable shell, persistence registration, and health behavior
 
@@ -71,7 +71,7 @@ Complete the normal builder/build/run lifecycle, namespace imports, and missing-
 
 **Owner:** Controller for environment verification, documentation, evidence, and final integration. Custom reviewers independently assess the resulting change. No second implementation agent is necessary for read-only checks and reporting.
 
-**Files:** update `README.md`, `.gitignore` only if relevant probe paths expose gaps, active milestone/status sections in `AGENTS.md` and `docs/01-plan.md` through `docs/05-validation-strategy.md`; append actual evidence under `evidence/reviews/` and meaningful discoveries to `docs/ai-review-log.md`. Preserve earlier evidence/history. Maintain sequential `prompts/` records for all qualifying delegated prompts.
+**Files:** update `README.md`, `.gitignore` only if relevant probe paths expose gaps, active milestone/status sections in `AGENTS.md` and `docs/01-plan.md` through `docs/05-validation-strategy.md`; append actual evidence under `evidence/reviews/` and meaningful discoveries to `docs/ai-review-log.md`. Preserve earlier evidence/history. Keep only qualifying user-authored task requests in `prompts/`; internal delegation and review prompts are excluded.
 
 **Interfaces:** Consume Task 1's solution, context, configuration key, and HTTP endpoints. Produce verified setup instructions and evidence, with positive database connectivity either tested or explicitly pending user configuration.
 

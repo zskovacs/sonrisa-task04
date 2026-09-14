@@ -2,7 +2,7 @@
 
 ## Status
 
-**Accepted.** Recorded on 2026-09-14 during milestone 2. The user approved the proposed UI/runtime direction and explicitly requested separate application and n8n databases, EF Core migrations for the application, and no connection strings in the repository. See [the clarification](../../prompts/003-confirm-persistence-and-secret-handling.md). This is a design decision; no projects, packages, database setup, migrations, or secrets have been created.
+**Accepted.** Recorded on 2026-09-14 during milestone 2. The user approved the proposed UI/runtime direction and explicitly requested separate application and n8n databases, EF Core migrations for the application, and no connection strings in the repository. This is a design decision; no projects, packages, database setup, migrations, or secrets have been created.
 
 **DEV topology amendment:** [ADR-006](ADR-006-use-existing-shared-dev-infrastructure.md) supersedes the local-service topology and the requirement for this repository to create/manage two databases, including n8n internal persistence. Use the existing shared DEV services; only product persistence is in application scope. The original topology below is retained as history. Razor Pages, EF Core product migrations, and external secrets remain accepted.
 

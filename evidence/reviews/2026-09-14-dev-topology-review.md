@@ -4,13 +4,13 @@ Date: 2026-09-14
 
 ## Scope and revision
 
-Documentation-only preparation for milestone 3, reviewing the working changes against architecture baseline `b68e3ad`. This is the topology checkpoint requested in [prompt 011](../../prompts/011-amend-dev-topology.md), not skeleton acceptance or completion of the milestone commit.
+Documentation-only preparation for milestone 3, reviewing the working changes against architecture baseline `b68e3ad`. This is the user-requested topology checkpoint recorded in ADR-006, not skeleton acceptance or completion of the milestone commit.
 
 The reviewed [ADR-006](../../docs/adr/ADR-006-use-existing-shared-dev-infrastructure.md) has SHA-256 `3ada644a85d4ecf2f0993e73091eb335876aaf17abfbb1ab9d4b728d67a4eb40`. This evidence file was added after the independent review and does not claim to have reviewed itself.
 
 ## Independent review
 
-- The `sp_final_branch_reviewer` received the exact prompt recorded in [prompt 012](../../prompts/012-review-dev-topology-amendment.md).
+- The `sp_final_branch_reviewer` reviewed the DEV topology amendment.
 - Verdict: `APPROVE_WITH_MINOR_NOTES`. No Critical or Important findings; no remaining active architectural conflict.
 - Minor finding: ADR-003's earlier context note still said two databases remained accepted. Although its ADR-006 supersession notice was clear, the reviewer recommended marking that older note as historical.
 - Correction: the controller labeled the note as the historical milestone 2 ownership amendment and explicitly distinguished its then-retained decisions from ADR-006's subsequent topology supersession. A separate awkward phrase about hosted persistence in the assumptions register was clarified without changing meaning.

@@ -2,7 +2,7 @@
 
 ## Status
 
-**Accepted.** Recorded on 2026-09-14 during preparation for milestone 3. The user approved this narrowly scoped amendment in [prompt 011](../../prompts/011-amend-dev-topology.md), after [the skeleton request](../../prompts/010-create-application-skeleton.md) exposed a conflict with the earlier local-service assumptions. This is a refinement caused by implementation-environment discovery, not a product redesign or evidence of working connectivity.
+**Accepted.** Recorded on 2026-09-14 during preparation for milestone 3. The user approved this narrowly scoped amendment during the design clarification, after [the skeleton request](../../prompts/010-create-application-skeleton.md) exposed a conflict with the earlier local-service assumptions. This is a refinement caused by implementation-environment discovery, not a product redesign or evidence of working connectivity.
 
 This supersedes ADR-003's local-service topology, requirement to create two PostgreSQL databases, and repository responsibility for n8n internal persistence. It also supersedes ADR-005's requirement that this project account for a separate n8n internal database and its credential. The architecture's loopback-only n8n editor assumption no longer applies to the existing hosted DEV instance. D-001's single trusted operator and local management-application access context remain; its strictly local service-deployment interpretation is superseded.
 
