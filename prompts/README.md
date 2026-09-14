@@ -13,6 +13,7 @@ This directory contains only substantive user-authored task requests. It is not 
 | [021](021-first-end-to-end-n8n-alert-workflow.md) | Reconstruct context, approve a design, and implement the first end-to-end n8n alert workflow. |
 | [022](022-simplify-first-runtime-workflow-design.md) | Simplify and approve the first runtime design, keeping matching in n8n and delivery explicitly selected. |
 | [023](023-create-sonrisa-slack-app.md) | Create the Sonrisa DEV Slack app, configure its scopes, and configure the n8n credential where possible. |
+| [024](024-add-smtp-email-delivery.md) | Add SMTP email delivery alongside the existing notification workflow using SMTP4DEV. |
 
 Record meaningful user requests that start a milestone or assign implementation/product-validation work. Exclude agent-generated plans, delegated assignments, internal review prompts and loops, brainstorming answers, clarifications, approvals, status replies, and routine housekeeping. Honor explicit requests not to record a message.
 

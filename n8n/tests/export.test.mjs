@@ -59,16 +59,35 @@ test('operator inputs are inert and future live fetch stays separate from fixtur
   assert.equal(ingest.nodes.some(n => n.type === 'n8n-nodes-base.scheduleTrigger' || n.type === 'n8n-nodes-base.webhook' || n.type === 'n8n-nodes-base.formTrigger'), false);
 });
 
-test('delivery graph has explicit claim gate before the only Slack send', () => {
+test('delivery graph claims once and routes only supported channels to their transports', () => {
   const deliver = sanitizeWorkflow(snapshot('deliver'), 'deliver');
-  const chain = ['Manual selected delivery', 'Operator delivery ID', 'Require explicit delivery UUID', 'Claim one pending Slack delivery', 'Read immutable event message', 'Prepare safe Slack text', 'Send selected Slack notification'];
+  const chain = ['Manual selected delivery', 'Operator delivery ID', 'Require explicit delivery UUID', 'Claim one pending delivery', 'Read immutable event message', 'Slack channel?'];
   for (let i = 0; i < chain.length - 1; i++) assert.deepEqual(children(deliver, chain[i]), [chain[i + 1]]);
+  assert.deepEqual(children(deliver, 'Slack channel?', 0), ['Prepare safe Slack text']);
+  assert.deepEqual(children(deliver, 'Slack channel?', 1), ['Email channel?']);
+  assert.deepEqual(children(deliver, 'Email channel?', 0), ['Prepare safe email message']);
+  assert.deepEqual(children(deliver, 'Email channel?', 1), []);
+  assert.deepEqual(children(deliver, 'Prepare safe Slack text'), ['Send selected Slack notification']);
   assert.deepEqual(children(deliver, 'Send selected Slack notification', 0), ['Slack acknowledged send?']);
   assert.deepEqual(children(deliver, 'Send selected Slack notification', 1), ['Known Slack rejection?']);
+  assert.deepEqual(children(deliver, 'Prepare safe email message'), ['Valid email message?']);
+  assert.deepEqual(children(deliver, 'Valid email message?', 0), ['Send selected email notification']);
+  assert.deepEqual(children(deliver, 'Valid email message?', 1), ['Record invalid email message']);
+  assert.deepEqual(children(deliver, 'Send selected email notification', 0), ['Validate SMTP recipient acceptance']);
+  assert.deepEqual(children(deliver, 'Send selected email notification', 1), ['Record ambiguous email outcome']);
+  assert.deepEqual(children(deliver, 'Validate SMTP recipient acceptance'), ['SMTP accepted recipient?']);
+  assert.deepEqual(children(deliver, 'SMTP accepted recipient?', 0), ['Record accepted email send']);
+  assert.deepEqual(children(deliver, 'SMTP accepted recipient?', 1), ['Record ambiguous email outcome']);
   const send = deliver.nodes.find(n => n.name === 'Send selected Slack notification');
   assert.equal(send.retryOnFail ?? false, false);
   assert.equal(send.onError, 'continueErrorOutput');
   assert.deepEqual(send.parameters.otherOptions, { includeLinkToWorkflow: false, mrkdwn: false, link_names: false, unfurl_links: false, unfurl_media: false });
+  const smtp = deliver.nodes.find(n => n.name === 'Send selected email notification');
+  assert.equal(smtp.retryOnFail, false);
+  assert.equal(smtp.onError, 'continueErrorOutput');
+  assert.deepEqual(smtp.parameters.options, { appendAttribution: false });
+  assert.equal(smtp.parameters.emailFormat, 'text');
+  assert.equal(assignment(deliver, 'Operator delivery ID', 'sender_email'), 'sonrisa@example.test');
 });
 
 test('sanitizer fails closed on active, temporary input, source drift and graph bypass', () => {
@@ -82,6 +101,18 @@ test('sanitizer fails closed on active, temporary input, source drift and graph 
   assert.throws(() => sanitizeWorkflow(bypass, 'deliver'), /connection/);
   const binding = snapshot('evaluate'); binding.nodes.find(n => n.name === 'Insert prepared delivery intents').parameters.options.queryReplacement = '={{ $json.unsafe }}';
   assert.throws(() => sanitizeWorkflow(binding, 'evaluate'), /query binding/);
+  const smtp = snapshot('deliver'); smtp.nodes.find(n => n.name === 'Send selected email notification').parameters.options.ccEmail = 'other@example.test';
+  assert.throws(() => sanitizeWorkflow(smtp, 'deliver'), /SMTP configuration/);
+  const inverted = snapshot('deliver'); inverted.nodes.find(n => n.name === 'Email channel?').parameters.conditions.conditions[0].operator.operation = 'notEquals';
+  assert.throws(() => sanitizeWorkflow(inverted, 'deliver'), /unsafe channel routing/);
+  const extra = snapshot('deliver'); extra.nodes.find(n => n.name === 'SMTP accepted recipient?').parameters.conditions.conditions.push({ leftValue: true, rightValue: true, operator: { type: 'boolean', operation: 'true' } });
+  assert.throws(() => sanitizeWorkflow(extra, 'deliver'), /unsafe SMTP acceptance routing/);
+  const disabled = snapshot('deliver'); disabled.nodes.find(n => n.name === 'Valid email message?').disabled = true;
+  assert.throws(() => sanitizeWorkflow(disabled, 'deliver'), /disabled delivery safety/);
+  const syntheticClaim = snapshot('deliver'); syntheticClaim.nodes.find(n => n.name === 'Claim one pending delivery').alwaysOutputData = true;
+  assert.throws(() => sanitizeWorkflow(syntheticClaim, 'deliver'), /claim must not synthesize/);
+  const retry = snapshot('deliver'); retry.nodes.find(n => n.name === 'Send selected email notification').retryOnFail = true;
+  assert.throws(() => sanitizeWorkflow(retry, 'deliver'), /unexpected SMTP settings/);
 });
 
 test('CLI output matches checked snapshot and tracked export', () => {

@@ -1,0 +1,17 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "sonrisa-smtp-20260914-01",
+      "properties": {
+        "type": "earthquake",
+        "mag": -100,
+        "time": 1789405200000,
+        "title": "Sonrisa SMTP validation 2026-09-14",
+        "place": "Synthetic SMTP4DEV test",
+        "url": null
+      }
+    }
+  ]
+}

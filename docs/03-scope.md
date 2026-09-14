@@ -2,9 +2,13 @@
 
 The original [brief](00-product-brief.md) establishes alerts, email, Slack, extensibility, and admin visibility. This document defines a deliberately narrow implementation target using the user-confirmed architecture and explicit [planning assumptions](02-assumptions-and-open-questions.md). It does not turn untested assumptions into discovered product requirements.
 
-## Current milestone
+## Current SMTP extension
 
-Milestones 2–4 are complete at `b68e3ad`, `5880801` and `98b000c`. The current milestone 5 implements the [approved simplified first runtime slice](superpowers/specs/2026-09-14-first-runtime-design.md), with acceptance tracked separately in evidence. Scope is USGS ingestion, canonical validation, source/external-ID deduplication, n8n-owned one-condition matching across owners, minimal durable intent, and one explicitly selected Slack send. All three workflows remain inactive. Automatic delivery draining/retries, email execution, attempts/circuits, operational views, authentication and multiple conditions remain outside this milestone. [ADR-011](adr/ADR-011-use-n8n-evaluation-and-replay-safe-runtime-writes.md) records the deliberate simplification.
+After milestone 5 completed at `b9cf171`, the user approved [SMTP email in the existing delivery workflow](superpowers/specs/2026-09-14-smtp-delivery-design.md). New email intents become manually selectable alongside Slack, with the same claim/idempotency boundary. Preserve legacy Unsupported email records. SMTP4DEV is the isolated DEV transport; no fourth workflow, automatic send/retry/drain, circuit or application SMTP code is included. The milestone-5 scope below remains its historical boundary.
+
+## Completed milestone-5 boundary
+
+Milestones 2–4 are complete at `b68e3ad`, `5880801` and `98b000c`. Milestone 5 implemented the [approved simplified first runtime slice](superpowers/specs/2026-09-14-first-runtime-design.md), with acceptance tracked separately in evidence. Scope is USGS ingestion, canonical validation, source/external-ID deduplication, n8n-owned one-condition matching across owners, minimal durable intent, and one explicitly selected Slack send. All three workflows remain inactive. Automatic delivery draining/retries, email execution, attempts/circuits, operational views, authentication and multiple conditions remain outside this milestone. [ADR-011](adr/ADR-011-use-n8n-evaluation-and-replay-safe-runtime-writes.md) records the deliberate simplification.
 
 The completed skeleton followed [prompt 010](../prompts/010-create-application-skeleton.md), [ADR-006](adr/ADR-006-use-existing-shared-dev-infrastructure.md), and its reviewed [specification](superpowers/specs/2026-09-14-application-skeleton-design.md) and [plan](superpowers/plans/2026-09-14-application-skeleton.md). Its no-product-model restriction was specific to milestone 3; the broader product behavior below remains the MVP target.
 

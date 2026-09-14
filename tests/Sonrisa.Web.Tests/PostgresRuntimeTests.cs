@@ -77,14 +77,14 @@ public sealed class PostgresRuntimeTests
     }
 
     [PostgresFact]
-    public async Task Intent_checks_reject_invalid_email_status_and_missing_sent_timestamp()
+    public async Task Intent_checks_reject_invalid_status_and_missing_sent_timestamp()
     {
         foreach (var (channel, destination, status, error, constraint) in new[]
         {
-            ("email", "person@example.test", "pending", (string?)null, "ck_notification_deliveries_status"),
+            ("email", "person@example.test", "unsupported", (string?)null, "ck_notification_deliveries_status"),
             ("slack", "bad channel", "pending", (string?)null, "ck_notification_deliveries_destination"),
             ("slack", "C12345678", "sent", (string?)null, "ck_notification_deliveries_status"),
-            ("email", "person@example.test", "unsupported", (string?)null, "ck_notification_deliveries_status")
+            ("email", "person@example.test", "sent", (string?)null, "ck_notification_deliveries_status")
         })
         {
             await using var db = await PostgresServiceTests.OpenVerifiedContext();
@@ -99,6 +99,46 @@ public sealed class PostgresRuntimeTests
             Assert.Equal(PostgresErrorCodes.CheckViolation, exception.SqlState);
             Assert.Equal(constraint, exception.ConstraintName);
         }
+    }
+
+    [PostgresFact]
+    public async Task Email_active_states_are_legal_and_legacy_unsupported_remains_unclaimable()
+    {
+        await using var db = await PostgresServiceTests.OpenVerifiedContext();
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        var owner = Guid.NewGuid();
+        var alert = Guid.NewGuid();
+        var sourceEvent = Guid.NewGuid();
+        await InsertConfiguration(db, owner, alert);
+        await InsertEvent(db, sourceEvent, $"fixture-{Guid.NewGuid():N}", "{\"magnitude\":5}");
+        var active = Guid.NewGuid();
+        Assert.Equal(1, await InsertDelivery(db, active, sourceEvent, alert, "email", "person@example.test", "pending"));
+        Assert.Equal(1, await db.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE public.notification_deliveries SET status = 'processing'
+            WHERE id = {active} AND channel = 'email' AND status = 'pending'
+            """));
+        Assert.Equal(1, await db.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE public.notification_deliveries SET last_error = 'delivery_outcome_unknown'
+            WHERE id = {active} AND channel = 'email' AND status = 'processing'
+            """));
+        Assert.Equal(1, await db.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE public.notification_deliveries SET status = 'sent', sent_at = now(), last_error = NULL
+            WHERE id = {active} AND channel = 'email' AND status = 'processing'
+            """));
+        Assert.Equal("sent", await db.Database.SqlQueryRaw<string>(
+            "SELECT status AS \"Value\" FROM public.notification_deliveries WHERE id = {0}", active).SingleAsync());
+
+        var legacyEvent = Guid.NewGuid();
+        await InsertEvent(db, legacyEvent, $"fixture-{Guid.NewGuid():N}", "{\"magnitude\":5}");
+        var legacy = Guid.NewGuid();
+        Assert.Equal(1, await InsertDelivery(db, legacy, legacyEvent, alert, "email", "person@example.test",
+            "unsupported", "transport_not_implemented"));
+        Assert.Equal(0, await db.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE public.notification_deliveries SET status = 'processing'
+            WHERE id = {legacy} AND channel IN ('slack', 'email') AND status = 'pending'
+            """));
+        Assert.Equal("unsupported", await db.Database.SqlQueryRaw<string>(
+            "SELECT status AS \"Value\" FROM public.notification_deliveries WHERE id = {0}", legacy).SingleAsync());
     }
 
     [PostgresFact]

@@ -61,14 +61,37 @@ test('normalizer omits invalid optional URL and rejects oversized feed', () => {
 const event = (magnitude) => ({ id: '11111111-1111-4111-8111-111111111111', event_type: 'earthquake', data: { magnitude } });
 const alert = (overrides = {}) => ({ id: '22222222-2222-4222-8222-222222222222', enabled: true, event_type: 'earthquake', condition_field: 'magnitude', condition_operator: 'gte', condition_value_type: 'number', condition_value: 5, email_destination: 'p@example.test', slack_destination: 'C123ABC', ...overrides });
 
-test('evaluator matches equality and above, not below, with both channel states', () => {
+test('evaluator matches equality and above, not below, with pending channel intents', () => {
   assert.deepEqual(run('evaluate-alerts', { event: event(4.9), alerts: [alert()] }).intents, []);
   for (const magnitude of [5, 5.1]) {
     const out = run('evaluate-alerts', { event: event(magnitude), alerts: [alert()] });
     assert.deepEqual(out.intents, [
       { alert_id: alert().id, channel: 'slack', destination: 'C123ABC', status: 'pending', last_error: null },
-      { alert_id: alert().id, channel: 'email', destination: 'p@example.test', status: 'unsupported', last_error: 'transport_not_implemented' }
+      { alert_id: alert().id, channel: 'email', destination: 'p@example.test', status: 'pending', last_error: null }
     ]);
+  }
+});
+
+test('shared claim selects only successfully updated supported pending rows and reads channel', () => {
+  const claim = file('sql/claim-delivery.sql');
+  const read = file('sql/select-claimed-delivery.sql');
+  assert.match(claim, /WITH claimed AS\s*\(\s*UPDATE public\.notification_deliveries/i);
+  assert.match(claim, /WHERE id = \$1::uuid AND channel IN \('slack', 'email'\) AND status = 'pending'/i);
+  assert.match(claim, /SELECT id, source_event_id, alert_id, channel, destination FROM claimed/i);
+  assert.match(read, /SELECT d\.id, d\.source_event_id, d\.alert_id, d\.channel, d\.destination/i);
+  assert.match(read, /d\.channel IN \('slack', 'email'\) AND d\.status = 'processing'/i);
+});
+
+test('email outcome queries guard channel and processing status', () => {
+  for (const [name, expected] of [
+    ['record-email-sent.sql', /status = 'sent', sent_at = now\(\), last_error = NULL/i],
+    ['record-email-unknown.sql', /SET last_error = 'delivery_outcome_unknown'/i],
+    ['record-email-invalid.sql', /status = 'failed', last_error = 'invalid_email_message'/i]
+  ]) {
+    const sql = file(`sql/${name}`);
+    assert.match(sql, expected);
+    assert.match(sql, /WHERE id = \$1::uuid AND channel = 'email' AND status = 'processing'/i);
+    assert.match(sql, /RETURNING id/i);
   }
 });
 
@@ -95,7 +118,7 @@ test('SQL only expands prepared values and preserves completion on empty intent 
   const source = file('sql/insert-source-events.sql');
   const candidate = file('sql/select-event-candidates.sql');
   const intents = file('sql/insert-delivery-intents.sql');
-  const claim = file('sql/claim-slack-delivery.sql');
+  const claim = file('sql/claim-delivery.sql');
   assert.match(source, /ON CONFLICT \(source, external_id\) DO NOTHING/i);
   assert.match(candidate, /COALESCE\s*\(\s*c\.alerts/i);
   assert.match(candidate, /jsonb_agg/i);

@@ -1,10 +1,10 @@
 # MVP architecture
 
-This is the current architecture, amended by [ADR-011](adr/ADR-011-use-n8n-evaluation-and-replay-safe-runtime-writes.md) for milestone 5. The [approved specification](superpowers/specs/2026-09-14-first-runtime-design.md) defines a minimal USGS-to-Slack slice; the [reviewed plan](superpowers/plans/2026-09-14-first-runtime.md) and evidence distinguish implementation from validation. The application manages configuration; n8n owns runtime processing through the product database. No n8n/application HTTP integration exists. Retry/circuit sections below describe deferred milestone-6 direction, not capabilities of the first slice.
+This is the current architecture, including the [SMTP extension](superpowers/specs/2026-09-14-smtp-delivery-design.md) after the first runtime slice, amended by [ADR-011](adr/ADR-011-use-n8n-evaluation-and-replay-safe-runtime-writes.md) for milestone 5. The [approved specification](superpowers/specs/2026-09-14-first-runtime-design.md) defines a minimal USGS-to-Slack slice; the [reviewed plan](superpowers/plans/2026-09-14-first-runtime.md) and evidence distinguish implementation from validation. The application manages configuration; n8n owns runtime processing through the product database. No n8n/application HTTP integration exists. Retry/circuit sections below describe deferred milestone-6 direction, not capabilities of the first slice.
 
 ## Product and runtime shape
 
-The single MVP operator configures an enabled earthquake alert with a magnitude threshold and a shared notification profile containing an email destination, Slack destination, or both. n8n ingests events, evaluates supported conditions, records durable notification intent, and delivers one explicitly selected Slack intent. Automatic retries, circuit breaking and email execution remain milestone 6. The operator will see events and delivery outcomes in the later operational surface. Additional event types reuse the same supported contract and processing stages.
+The single MVP operator configures an enabled earthquake alert with a magnitude threshold and a shared notification profile containing an email destination, Slack destination, or both. n8n ingests events, evaluates supported conditions, records durable notification intent, and delivers one explicitly selected Slack or email intent through the same channel-routed workflow. The approved SMTP-only extension follows milestone 5; automatic retries and circuit breaking remain milestone 6. The operator will see events and delivery outcomes in the later operational surface. Additional event types reuse the same supported contract and processing stages.
 
 Run the ASP.NET Core/Razor Pages application locally on the developer machine, directly or in the requested application-only Docker container with loopback host publishing. Use the existing shared DEV PostgreSQL server for the product database and the existing n8n runtime at `https://n8n.nasgard.io`. Do not provision local PostgreSQL or n8n. Hosted n8n owns its internal persistence entirely outside this repository; its storage is not part of the application database design. EF Core migrations own only the product schema. Confirm compatible application/provider versions and secure product-database connectivity during skeleton implementation; inspect n8n capabilities when relevant without changing shared service configuration. The service locations are user-confirmed, not connectivity test results.
 
@@ -20,7 +20,7 @@ flowchart LR
             Ingest[n8n ingest events]
             Normalize[Canonical normalization and validation]
             Evaluate[n8n evaluate pending events]
-            Deliver[n8n deliver selected Slack intent]
+            Deliver[n8n deliver selected notification intent]
         end
     end
     Services <-->|EF Core over current DEV connection| ProductDB
@@ -29,8 +29,9 @@ flowchart LR
     Ingest --> Normalize
     Normalize -->|Insert Pending event or detect duplicate| ProductDB
     Evaluate[n8n evaluate pending events] <-->|Read configuration; persist replay-safe results| ProductDB
-    Deliver[n8n deliver selected Slack intent] <-->|Claim selected intent; record outcome| ProductDB
+    Deliver[n8n deliver selected notification intent] <-->|Claim selected intent; record outcome| ProductDB
     Deliver --> Slack[Slack]
+    Deliver --> SMTP[SMTP email]
 ```
 
 The diagram shows the approved first-slice responsibilities. All three workflows remain inactive, with manual execution for validation. Ingestion, evaluation and delivery have independent recovery boundaries. No generic workflow engine, broker, distributed cache, or extra worker service is needed.
@@ -42,7 +43,7 @@ The diagram shows the approved first-slice responsibilities. All three workflows
 | Razor Pages/application services | Create/edit/enable/disable user conditions, validate configuration, scope all alert operations to the configured owner, and render operational data. | Reads/writes configuration; reads workflow-owned event/delivery state. No event evaluator, delivery scheduler, or circuit state machine in application code. |
 | n8n ingestion | Poll the selected source, normalize/validate canonical data, and persist previously unseen events. | Dedicated runtime credential for product SQL; external credentials use n8n's credential system. |
 | n8n evaluation | Read active conditions, evaluate the supported typed rule, create unique delivery intent, and complete event processing. | A joined configuration read, n8n evaluation, idempotent intent write, and separate event completion. No SQL business matcher or event-wide transaction. |
-| n8n delivery | Require one explicit Slack intent ID, conditionally claim it, send once, and persist the outcome. Automatic queue draining/retries and email are deferred. | Workflow-owned logic and operational records. Application database storage does not imply application behavioral ownership. |
+| n8n delivery | Require one explicit supported intent ID, conditionally claim it, route Slack/email, send once, and persist the outcome. Automatic queue draining/retries are deferred. | Workflow-owned logic and operational records. Application database storage does not imply application behavioral ownership. |
 | Product PostgreSQL database | Configuration, canonical events, Pending/Evaluated state, and minimal delivery intent/outcome records. Attempts and circuits are future work. | EF migrations own schema. n8n runtime can read configuration and read/write operational records; it cannot alter schema or user conditions. |
 
 Use distinct least-privilege migration, application-runtime, and n8n product-workflow roles for the product database. [ADR-007](adr/ADR-007-accept-current-dev-database-access.md) permits the currently supplied application administrative credential for DEV only; production retains the restricted-role requirement. Outside that explicit DEV exception, runtime roles receive no schema-owner or superuser privileges; EF migration access is separate. Hosted n8n internal storage and its credentials are outside repository design, setup, and validation. Explicit column projections, parameterized values, and database constraints form the integration contract. Review every breaking schema change with the affected workflow queries. Do not build a duplicate application API for symmetry.
@@ -99,13 +100,13 @@ A focused n8n Code node interprets only textual `earthquake`, `magnitude`, `gte`
 
 A parameterized intent insert uses `UNIQUE(source_event_id, alert_id, channel)` and snapshots the destination. It returns a completion summary even for zero matches. Only after successful persistence does a separate statement mark the event Evaluated. Failure leaves Pending available for replay; previously committed intents are retained without duplication. This is intentionally simpler than an atomic SQL matcher and does not provide an event-wide immutable rule snapshot across replays. No external send occurs inside evaluation.
 
-### 3. Deliver one selected Slack intent
+### 3. Deliver one selected intent
 
-A manual entry requires one explicit UUID; empty/invalid input fails before access or send. A conditional update claims only that `pending` Slack intent as `processing`. Missing, already claimed, sent, failed and email intents cannot pass the claim gate. There is no automatic pending-delivery scan.
+A manual entry requires one explicit UUID; empty/invalid input fails before access or send. A conditional update claims only that `pending` Slack/email intent as `processing`. Missing, already claimed, sent, failed and legacy Unsupported intents cannot pass the claim gate. There is no automatic pending-delivery scan.
 
-The message uses immutable canonical event data and domain IDs, with a synthetic marker where applicable; the destination comes from the intent snapshot and credentials from n8n. Disable native send retries. One accepted Slack response may be recorded as `sent`; this proves provider acceptance, not human receipt. A known rejection is `failed` with a bounded diagnostic code. An uncertain network result or a crash after Slack acceptance leaves `processing`, possibly with an outcome-unknown code, and is not automatically retried. `unsupported` email intent is visible and never selected for Slack.
+The message uses immutable canonical event data and domain IDs, with a synthetic marker where applicable; the destination comes from the intent snapshot and credentials from n8n. Disable native send retries. One accepted Slack response may be recorded as `sent`; this proves provider acceptance, not human receipt. A known rejection is `failed` with a bounded diagnostic code. An uncertain network result or a crash after Slack acceptance leaves `processing`, possibly with an outcome-unknown code, and is not automatically retried. Legacy `unsupported` email intent remains visible and unclaimable. New email intent follows the shared claim and a native SMTP branch; the [runtime contract](07-runtime-contract.md#email-transport) specifies conservative address validation and acknowledgement checks.
 
-There is no exactly-once external delivery guarantee. Start any re-execution at the explicit-ID claim entry, never replay a saved Slack node with its old inputs. Do not manually reset an ambiguous record without investigation. A future retry policy must explicitly handle uncertainty and possible duplicates.
+There is no exactly-once external delivery guarantee. Start any re-execution at the explicit-ID claim entry, never replay a saved transport node with its old inputs. Do not manually reset an ambiguous record without investigation. A future retry policy must explicitly handle uncertainty and possible duplicates.
 
 ## Deferred delivery/reliability architecture — milestone 6
 

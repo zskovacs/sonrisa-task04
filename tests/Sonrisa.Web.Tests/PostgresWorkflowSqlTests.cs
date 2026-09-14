@@ -175,7 +175,7 @@ public sealed class PostgresWorkflowSqlTests
     }
 
     [PostgresFact]
-    public async Task Exact_claim_is_single_winner_and_outcome_queries_keep_email_inert()
+    public async Task Exact_shared_claim_is_single_winner_and_channel_outcomes_are_guarded()
     {
         await using var db = await Open();
         var owner = Guid.NewGuid();
@@ -200,32 +200,71 @@ public sealed class PostgresWorkflowSqlTests
             var emailId = await Scalar<Guid>(db,
                 "SELECT id FROM public.notification_deliveries WHERE source_event_id = $1 AND alert_id = $2 AND channel = 'email'",
                 Uuid(eventId.Value), Uuid(alerts[0]));
+            var legacyId = await Scalar<Guid>(db,
+                "SELECT id FROM public.notification_deliveries WHERE source_event_id = $1 AND alert_id = $2 AND channel = 'email'",
+                Uuid(eventId.Value), Uuid(alerts[2]));
+            await Execute(db, "UPDATE public.notification_deliveries SET status = 'unsupported', last_error = 'transport_not_implemented' WHERE id = $1", Uuid(legacyId));
 
             async Task<int> Claim()
             {
                 await using var contender = await Open();
-                return await WorkflowRows(contender, "claim-slack-delivery.sql", Uuid(slackIds[0]));
+                return await WorkflowRows(contender, "claim-delivery.sql", Uuid(slackIds[0]));
             }
             Assert.Equal(new[] { 0, 1 }, (await Task.WhenAll(Claim(), Claim())).Order());
-            Assert.Equal(0, await WorkflowRows(db, "claim-slack-delivery.sql", Uuid(slackIds[0])));
-            Assert.Equal(0, await WorkflowRows(db, "claim-slack-delivery.sql", Uuid(emailId)));
+            Assert.Equal(0, await WorkflowRows(db, "claim-delivery.sql", Uuid(slackIds[0])));
             Assert.Equal(1, await WorkflowRows(db, "select-claimed-delivery.sql", Uuid(slackIds[0])));
+            await using (var read = Command(db, Sql("select-claimed-delivery.sql"), Uuid(slackIds[0])))
+            await using (var rows = await read.ExecuteReaderAsync())
+            {
+                Assert.True(await rows.ReadAsync());
+                Assert.Equal("slack", rows.GetString(3));
+            }
             Assert.Equal(1, await WorkflowRows(db, "record-slack-sent.sql", Uuid(slackIds[0])));
             Assert.Equal(0, await WorkflowRows(db, "record-slack-sent.sql", Uuid(slackIds[0])));
             Assert.Equal("sent", await Scalar<string>(db,
                 "SELECT status FROM public.notification_deliveries WHERE id = $1 AND sent_at IS NOT NULL", Uuid(slackIds[0])));
 
-            Assert.Equal(1, await WorkflowRows(db, "claim-slack-delivery.sql", Uuid(slackIds[1])));
+            Assert.Equal(1, await WorkflowRows(db, "claim-delivery.sql", Uuid(slackIds[1])));
             Assert.Equal(1, await WorkflowRows(db, "record-slack-failed.sql", Uuid(slackIds[1])));
             Assert.Equal("failed:slack_rejected", await Scalar<string>(db,
                 "SELECT status || ':' || last_error FROM public.notification_deliveries WHERE id = $1", Uuid(slackIds[1])));
-            Assert.Equal(1, await WorkflowRows(db, "claim-slack-delivery.sql", Uuid(slackIds[2])));
+            Assert.Equal(1, await WorkflowRows(db, "claim-delivery.sql", Uuid(slackIds[2])));
             Assert.Equal(1, await WorkflowRows(db, "record-slack-unknown.sql", Uuid(slackIds[2])));
             Assert.Equal("processing:delivery_outcome_unknown", await Scalar<string>(db,
                 "SELECT status || ':' || last_error FROM public.notification_deliveries WHERE id = $1", Uuid(slackIds[2])));
-            Assert.Equal("unsupported", await Scalar<string>(db,
-                "SELECT status FROM public.notification_deliveries WHERE id = $1", Uuid(emailId)));
+            async Task<int> ClaimEmail()
+            {
+                await using var contender = await Open();
+                return await WorkflowRows(contender, "claim-delivery.sql", Uuid(emailId));
+            }
+            Assert.Equal(new[] { 0, 1 }, (await Task.WhenAll(ClaimEmail(), ClaimEmail())).Order());
+            Assert.Equal(0, await WorkflowRows(db, "claim-delivery.sql", Uuid(emailId)));
+            Assert.Equal(0, await WorkflowRows(db, "claim-delivery.sql", Uuid(legacyId)));
+            Assert.Equal("unsupported:transport_not_implemented", await Scalar<string>(db,
+                "SELECT status || ':' || last_error FROM public.notification_deliveries WHERE id = $1", Uuid(legacyId)));
+            await using (var read = Command(db, Sql("select-claimed-delivery.sql"), Uuid(emailId)))
+            await using (var rows = await read.ExecuteReaderAsync())
+            {
+                Assert.True(await rows.ReadAsync());
+                Assert.Equal("email", rows.GetString(3));
+                Assert.Equal("claim@example.test", rows.GetString(4));
+            }
             Assert.Equal(0, await WorkflowRows(db, "record-slack-sent.sql", Uuid(emailId)));
+            Assert.Equal(1, await WorkflowRows(db, "record-email-unknown.sql", Uuid(emailId)));
+            Assert.Equal("processing:delivery_outcome_unknown", await Scalar<string>(db,
+                "SELECT status || ':' || last_error FROM public.notification_deliveries WHERE id = $1", Uuid(emailId)));
+            Assert.Equal(1, await WorkflowRows(db, "record-email-sent.sql", Uuid(emailId)));
+            Assert.Equal(0, await WorkflowRows(db, "record-email-invalid.sql", Uuid(emailId)));
+            Assert.Equal("sent", await Scalar<string>(db,
+                "SELECT status FROM public.notification_deliveries WHERE id = $1 AND sent_at IS NOT NULL", Uuid(emailId)));
+            var invalidId = await Scalar<Guid>(db,
+                "SELECT id FROM public.notification_deliveries WHERE source_event_id = $1 AND alert_id = $2 AND channel = 'email'",
+                Uuid(eventId.Value), Uuid(alerts[1]));
+            Assert.Equal(1, await WorkflowRows(db, "claim-delivery.sql", Uuid(invalidId)));
+            Assert.Equal(1, await WorkflowRows(db, "record-email-invalid.sql", Uuid(invalidId)));
+            Assert.Equal("failed:invalid_email_message", await Scalar<string>(db,
+                "SELECT status || ':' || last_error FROM public.notification_deliveries WHERE id = $1", Uuid(invalidId)));
+            Assert.Equal(0, await WorkflowRows(db, "record-email-sent.sql", Uuid(invalidId)));
         }
         finally
         {

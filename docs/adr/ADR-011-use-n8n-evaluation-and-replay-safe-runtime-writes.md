@@ -4,6 +4,10 @@
 
 Accepted on 2026-09-14 through the user's explicit [milestone-5 simplification](../../prompts/022-simplify-first-runtime-workflow-design.md). This supersedes ADR-005's one-operation SQL matching/intent/completion requirement and the associated event-wide configuration snapshot assumption. ADR-005's direct database integration and n8n runtime ownership remain. Implementation and validation are recorded separately.
 
+## Subsequent bounded extension
+
+After milestone 5 completed at `b9cf171`, the user requested SMTP4DEV email and approved adding an email branch to the existing selected-ID delivery workflow. The [SMTP specification](../superpowers/specs/2026-09-14-smtp-delivery-design.md) amends only the transport deferral below: new email intents may be delivered manually, legacy Unsupported rows remain unchanged, and three workflows remain inactive. Automatic recovery, attempts and circuits are still deferred. A fourth workflow was rejected because the common claim/read path and channel branching are sufficient; this is not a new orchestration architecture.
+
 ## Decision
 
 Use two minimal runtime tables, source_events and notification_deliveries. n8n normalizes USGS data, reads enabled alerts across all owners and their shared user destinations, and evaluates the supported earthquake/magnitude/gte/number condition. PostgreSQL persists configuration and durable state with parameterized queries; it is not the business-rule evaluator.

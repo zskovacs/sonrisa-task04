@@ -187,3 +187,11 @@ The final branch reviewer found that PostgreSQL btrim without a character set re
 ## 2026-09-14 — Real PostgreSQL checks corrected a test assumption
 
 The first six runtime relational tests ran after reviewed migration application. Four passed; both restricted-delete tests correctly received a database rejection but incorrectly expected the generic foreign-key SQLSTATE `23503`. PostgreSQL 18 returned `23001` for the explicit RESTRICT action. The assertions were corrected to `PostgresErrorCodes.RestrictViolation`; the same real-DEV suite passed 6/6 and scoped review approved. No schema behavior was weakened. [Actual evidence](../evidence/reviews/2026-09-14-first-runtime-validation.md).
+
+## 2026-09-14: SMTP extension simplified to a channel branch
+
+The initial SMTP proposal added a fourth workflow, duplicating selected-ID validation, claim and event reading. The user correctly challenged that separation; the approved correction keeps the existing delivery workflow and adds mutually exclusive Slack/email transport paths behind one claim. No new recovery requirement justified another workflow.
+
+Independent plan review then identified fixture isolation, pre-send validation outcome and credential-target verification gaps. The plan now requires an empty source queue and no unrelated matches, records invalid email preparation as a definite Failed/non-send, and verifies the intended SMTP4DEV target before the controlled send. Native SMTP result validation checks the sole intended recipient; broad error strings are deliberately not guessed into definitive rejection states. Actual checks and the read-only custom-role CLI fallback used for independent implementation review are recorded in [SMTP evidence](../evidence/reviews/2026-09-14-smtp-delivery-validation.md).
+
+Controller review also removed an SDK credential placeholder that could select an unintended account, strengthened export checks for routing predicates and disabled safety nodes, and rejected contradictory SMTP acknowledgements. The n8n update API rejected an unused `maxTries=1` setting despite SDK acceptance; omitting it while explicitly disabling retries preserved one-attempt behavior. These corrections preceded the controlled send; see the same SMTP evidence.

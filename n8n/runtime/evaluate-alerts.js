@@ -32,6 +32,6 @@ for (const alert of input.alerts) {
     continue;
   }
   if (slack) intents.push({ alert_id: id, channel: 'slack', destination: slack, status: 'pending', last_error: null });
-  if (email) intents.push({ alert_id: id, channel: 'email', destination: email, status: 'unsupported', last_error: 'transport_not_implemented' });
+  if (email) intents.push({ alert_id: id, channel: 'email', destination: email, status: 'pending', last_error: null });
 }
 return [{ json: { event_id: event.id, intents, diagnostics } }];

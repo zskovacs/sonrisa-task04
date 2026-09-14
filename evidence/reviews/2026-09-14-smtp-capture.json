@@ -1,0 +1,7 @@
+{
+  "smtp4dev_message_id": "25ca14c3-1f30-48a8-b847-b516c6ebee5f",
+  "from": "sonrisa@example.test",
+  "to": "sonrisa.runtime@example.test",
+  "subject": "[SYNTHETIC] Earthquake M -100 | Delivery 81abff1e-5269-4112-8c5d-ce21d1c4d7b0",
+  "body": "[SYNTHETIC] Earthquake M -100: Sonrisa SMTP validation 2026-09-14\r\nOccurred: 2026-09-14T17:00:00.000Z\r\nSource: demo.usgs\r\nEvent: 9d705904-7240-46ab-a6e6-38f79f4a7b71\r\nAlert: 734f38d8-18ec-4b48-8f68-4b1367e5387e\r\nDelivery: 81abff1e-5269-4112-8c5d-ce21d1c4d7b0"
+}

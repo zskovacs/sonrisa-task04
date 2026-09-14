@@ -64,6 +64,10 @@ public sealed class RuntimeModelTests
         Assert.Equal(["ck_notification_deliveries_destination", "ck_notification_deliveries_identity",
                 "ck_notification_deliveries_status"],
             delivery.GetCheckConstraints().Select(c => c.Name!).Order().ToArray());
+        var status = delivery.GetCheckConstraints().Single(c => c.Name == "ck_notification_deliveries_status").Sql;
+        Assert.Contains("channel IN ('slack', 'email')", status);
+        Assert.Contains("channel = 'email' AND status = 'unsupported'", status);
+        Assert.Contains("channel IN ('slack', 'email') AND (", status);
     }
 
     private static Dictionary<string, string> Columns(IEntityType entity) => entity.GetProperties().ToDictionary(

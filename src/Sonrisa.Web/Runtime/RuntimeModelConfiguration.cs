@@ -67,7 +67,7 @@ public static class RuntimeModelConfiguration
                     AND (last_error IS NULL OR last_error ~ '^[a-z][a-z0-9_]*$')
                     AND ((channel = 'email' AND status = 'unsupported' AND sent_at IS NULL
                         AND last_error = 'transport_not_implemented')
-                      OR (channel = 'slack' AND (
+                      OR (channel IN ('slack', 'email') AND (
                         (status = 'pending' AND sent_at IS NULL AND last_error IS NULL)
                         OR (status = 'processing' AND sent_at IS NULL
                             AND (last_error IS NULL OR last_error = 'delivery_outcome_unknown'))
