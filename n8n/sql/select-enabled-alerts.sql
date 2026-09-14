@@ -1,7 +1,7 @@
 WITH input AS (SELECT $1::jsonb AS event)
 SELECT input.event,
        COALESCE(jsonb_agg(jsonb_build_object(
-           'id', a.id, 'enabled', a.enabled, 'event_type', a.event_type,
+           'id', a.id, 'name', a.name, 'enabled', a.enabled, 'event_type', a.event_type,
            'condition_field', a.condition_field,
            'condition_operator', a.condition_operator,
            'condition_value_type', a.condition_value_type,

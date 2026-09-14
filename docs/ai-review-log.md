@@ -1,5 +1,15 @@
 # AI review log
 
+## 2026-09-14: Email export compatibility and safety guards needed narrow correction
+
+The first Email exporter guard rejected a valid n8n-saved Email node because n8n added a node `webhookId` and omitted default `resource`/`operation` fields. The correction was limited to the known transport metadata and verified default values. The exporter strips credential references and generated metadata, treats omitted defaults as equivalent, and still rejects unsafe transport parameters, pins and routing drift. A failing regression case was added before the correction; the final Node suite passed 24/24. [Email validation](../evidence/reviews/2026-09-14-email-channel-validation.md) records the resulting graph and checks.
+
+Controller review also hardened the generated Email helpers before remote use: synthetic subjects are marked, a single mailbox is validated more strictly, optional source URLs are safely constrained, and diagnostics avoid recipient/raw-error exposure. These were implementation corrections, not changes to the matching model or durable runtime architecture.
+
+## 2026-09-14: Execution inspection was narrowed to sanitized observations
+
+An initial broad execution-history inspection returned unnecessary execution metadata, including a resume-token field. The controller replaced broad response capture with selected node/field projections and retained only sanitized counts, diagnostics and controlled synthetic SMTP4DEV capture in tracked evidence. No token values were retained in tracked files; this correction concerns execution-data minimization, not a finding that SMTP credentials were exposed.
+
 ## 2026-09-14: Replace duplicated runtime infrastructure with native n8n behavior
 
 The approved and implemented first runtime used three workflows plus PostgreSQL source-event and delivery-intent state; SMTP later reused its delivery boundary. The latest review rejected that architecture because durable queues, recovery and delivery history solved requirements absent from the product brief and duplicated n8n responsibilities. The new accepted boundary is configuration-only product persistence and one n8n runtime with native deduplication, matching, dispatch and bounded best-effort retries. Earlier approvals and validation remain historical facts, not mistakes erased from history. [ADR-012](adr/ADR-012-use-n8n-native-runtime-state.md) records the supersession; [inspection evidence](../evidence/reviews/2026-09-14-runtime-simplification-inspection.md) establishes the committed/applied baseline.

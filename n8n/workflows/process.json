@@ -1,6 +1,6 @@
 {
   "name": "Sonrisa - Process Alerts - DEV",
-  "description": "Manual USGS-to-Slack alerts from persisted owner configuration. Native bounded deduplication and per-notification retry with continuation; best-effort delivery, email deferred to the required next channel milestone. Keep inactive.",
+  "description": "Manually process USGS earthquakes with native event deduplication, owner configuration and typed matching; route best-effort Slack and Email notifications with isolated bounded retries. Kept inactive.",
   "active": false,
   "nodes": [
     {
@@ -24,8 +24,6 @@
         768
       ],
       "parameters": {
-        "mode": "manual",
-        "includeOtherFields": false,
         "assignments": {
           "assignments": [
             {
@@ -41,7 +39,8 @@
               "type": "string"
             }
           ]
-        }
+        },
+        "options": {}
       }
     },
     {
@@ -54,8 +53,6 @@
         768
       ],
       "parameters": {
-        "mode": "runOnceForAllItems",
-        "language": "javaScript",
         "jsCode": "const input = $input.first().json;\nif (input.mode === 'live' && input.fixture_json === '') {\n  return [{ json: { mode: 'live' } }];\n}\nif (input.mode !== 'fixture') {\n  throw new Error('invalid_ingest_mode');\n}\nif (typeof input.fixture_json !== 'string' || input.fixture_json.length === 0 || input.fixture_json.length > 2097152) throw new Error('invalid_fixture_feed');\nlet feed;\ntry {\n  feed = JSON.parse(input.fixture_json);\n} catch {\n  throw new Error('invalid_fixture_feed');\n}\nreturn [{ json: { mode: 'fixture', source: 'demo.usgs', feed } }];\n"
       }
     },
@@ -73,7 +70,8 @@
           "options": {
             "caseSensitive": true,
             "leftValue": "",
-            "typeValidation": "strict"
+            "typeValidation": "strict",
+            "version": 1
           },
           "conditions": [
             {
@@ -86,7 +84,8 @@
             }
           ],
           "combinator": "and"
-        }
+        },
+        "options": {}
       }
     },
     {
@@ -99,16 +98,14 @@
         704
       ],
       "parameters": {
-        "method": "GET",
         "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson",
-        "authentication": "none",
         "options": {
-          "timeout": 20000,
           "response": {
             "response": {
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 20000
         }
       }
     },
@@ -122,8 +119,6 @@
         704
       ],
       "parameters": {
-        "mode": "manual",
-        "includeOtherFields": false,
         "assignments": {
           "assignments": [
             {
@@ -139,7 +134,8 @@
               "type": "object"
             }
           ]
-        }
+        },
+        "options": {}
       }
     },
     {
@@ -152,8 +148,6 @@
         768
       ],
       "parameters": {
-        "mode": "runOnceForAllItems",
-        "language": "javaScript",
         "jsCode": "const input = $input.first().json;\nif ((input.source !== 'usgs' && input.source !== 'demo.usgs') || !input.feed || input.feed.type !== 'FeatureCollection' || !Array.isArray(input.feed.features)) {\n  throw new Error('invalid_feed');\n}\nconst features = input.feed.features;\nif (features.length > 1000) throw new Error('feed_too_many_features');\nlet size;\ntry {\n  size = encodeURIComponent(JSON.stringify(input.feed)).replace(/%[0-9A-F]{2}/gi, 'x').length;\n} catch {\n  throw new Error('invalid_feed');\n}\nif (size > 2097152) throw new Error('feed_too_large');\nconst events = [];\nconst diagnostics = [];\nfor (const feature of features) {\n  const id = feature && feature.id;\n  const safeId = typeof id === 'string' && /^[!-~]{1,128}$/.test(id) ? id : null;\n  if (!safeId) {\n    diagnostics.push({ code: 'invalid_external_id' });\n    continue;\n  }\n  const properties = feature && feature.properties;\n  if (feature.type !== 'Feature' || !properties || properties.type !== 'earthquake') {\n    diagnostics.push({ code: 'unsupported_feature', external_id: safeId });\n    continue;\n  }\n  const mag = properties && properties.mag;\n  if (typeof mag !== 'number' || !Number.isFinite(mag)) {\n    diagnostics.push({ code: 'invalid_magnitude', external_id: safeId });\n    continue;\n  }\n  const ms = properties.time;\n  if (typeof ms !== 'number' || !Number.isFinite(ms) || !Number.isInteger(ms) || ms < -62135596800000 || ms > 253402300799999) {\n    diagnostics.push({ code: 'invalid_occurrence', external_id: safeId });\n    continue;\n  }\n  const occurred = new Date(ms).toISOString();\n  const place = typeof properties.place === 'string' ? properties.place.replace(/[\\x00-\\x1f\\x7f-\\x9f]/g, ' ').trim().slice(0, 200) : '';\n  const fallback = place ? `M ${mag} - ${place}` : `M ${mag} - Earthquake`;\n  const rawTitle = typeof properties.title === 'string' && properties.title.trim() ? properties.title : fallback;\n  const title = rawTitle.replace(/[\\x00-\\x1f\\x7f-\\x9f]/g, ' ').trim().slice(0, 300).trim() || 'Earthquake';\n  let url = null;\n  if (typeof properties.url === 'string' && properties.url.length <= 2048 && /^https?:\\/\\/[^\\s\\x00-\\x1f\\x7f-\\x9f]+$/.test(properties.url)) {\n    const authority = /^https?:\\/\\/([^\\/?#]+)/.exec(properties.url)?.[1];\n    if (authority && /^[A-Za-z0-9.-]+(?::[0-9]{1,5})?$/.test(authority)) url = properties.url;\n  }\n  events.push({ contract_version: 1, source: input.source, external_id: safeId, event_type: 'earthquake', occurred_at: occurred, title, source_url: url, data: { magnitude: mag } });\n}\nreturn [{ json: { events, diagnostics } }];\n"
       }
     },
@@ -168,7 +162,7 @@
       ],
       "parameters": {
         "fieldToSplitOut": "events",
-        "include": "noOtherFields"
+        "options": {}
       }
     },
     {
@@ -181,7 +175,6 @@
         768
       ],
       "parameters": {
-        "operation": "removeDuplicateInputItems",
         "compare": "selectedFields",
         "fieldsToCompare": "source,external_id",
         "options": {
@@ -200,7 +193,6 @@
       ],
       "parameters": {
         "operation": "removeItemsSeenInPreviousExecutions",
-        "logic": "removeItemsWithAlreadySeenKeyValues",
         "dedupeValue": "={{ $json.source + \":\" + $json.external_id }}",
         "options": {
           "scope": "node",
@@ -218,9 +210,8 @@
         768
       ],
       "parameters": {
-        "resource": "database",
         "operation": "executeQuery",
-        "query": "WITH input AS (SELECT $1::jsonb AS event)\nSELECT input.event,\n       COALESCE(jsonb_agg(jsonb_build_object(\n           'id', a.id, 'enabled', a.enabled, 'event_type', a.event_type,\n           'condition_field', a.condition_field,\n           'condition_operator', a.condition_operator,\n           'condition_value_type', a.condition_value_type,\n           'condition_value', a.condition_value,\n           'email_destination', u.email_destination,\n           'slack_destination', u.slack_destination\n       ) ORDER BY a.id) FILTER (WHERE a.id IS NOT NULL), '[]'::jsonb) AS alerts\nFROM input\nLEFT JOIN (public.alerts AS a JOIN public.users AS u ON u.id = a.owner_id)\n       ON a.enabled = true AND a.event_type = input.event->>'event_type'\nGROUP BY input.event;\n",
+        "query": "WITH input AS (SELECT $1::jsonb AS event)\nSELECT input.event,\n       COALESCE(jsonb_agg(jsonb_build_object(\n           'id', a.id, 'name', a.name, 'enabled', a.enabled, 'event_type', a.event_type,\n           'condition_field', a.condition_field,\n           'condition_operator', a.condition_operator,\n           'condition_value_type', a.condition_value_type,\n           'condition_value', a.condition_value,\n           'email_destination', u.email_destination,\n           'slack_destination', u.slack_destination\n       ) ORDER BY a.id) FILTER (WHERE a.id IS NOT NULL), '[]'::jsonb) AS alerts\nFROM input\nLEFT JOIN (public.alerts AS a JOIN public.users AS u ON u.id = a.owner_id)\n       ON a.enabled = true AND a.event_type = input.event->>'event_type'\nGROUP BY input.event;\n",
         "options": {
           "queryBatching": "independently",
           "queryReplacement": "={{ [JSON.stringify($json)] }}"
@@ -237,9 +228,7 @@
         768
       ],
       "parameters": {
-        "mode": "runOnceForAllItems",
-        "language": "javaScript",
-        "jsCode": "const output = [];\nconst safeEvent = event => ({\n  source: typeof event?.source === 'string' && /^(?:usgs|demo\\.usgs)$/.test(event.source) ? event.source : undefined,\n  external_id: typeof event?.external_id === 'string' && /^[!-~]{1,128}$/.test(event.external_id) ? event.external_id : undefined,\n});\nconst diagnostic = (code, event, alertId) => ({ json: { channel: 'diagnostic', code, ...safeEvent(event), ...(alertId ? { alert_id: alertId } : {}) } });\nconst validAlertId = id => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) && !/^0{8}-0{4}-0{4}-0{4}-0{12}$/i.test(id);\nconst validEmail = value => typeof value === 'string' && value.length <= 254 && /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)+$/.test(value) && !value.includes('..');\nfor (const item of $input.all()) {\n  const { event, alerts } = item.json ?? {};\n  const magnitude = event?.data?.magnitude;\n  if (event?.contract_version !== 1 || typeof event?.source !== 'string' || !/^(?:usgs|demo\\.usgs)$/.test(event.source) || typeof event?.external_id !== 'string' || !/^[!-~]{1,128}$/.test(event.external_id) || event?.event_type !== 'earthquake' || typeof magnitude !== 'number' || !Number.isFinite(magnitude) || !Array.isArray(alerts)) {\n    output.push(diagnostic('invalid_event_or_envelope', event));\n    continue;\n  }\n  for (const alert of alerts) {\n    if (!alert || alert.enabled !== true) continue;\n    if (!validAlertId(alert.id)) { output.push(diagnostic('invalid_alert_id', event)); continue; }\n    const id = alert.id;\n    if (alert.event_type !== 'earthquake' || alert.condition_field !== 'magnitude' || alert.condition_operator !== 'gte' || alert.condition_value_type !== 'number') {\n      output.push(diagnostic('unsupported_condition', event, id));\n      continue;\n    }\n    if (typeof alert.condition_value !== 'number' || !Number.isFinite(alert.condition_value)) {\n      output.push(diagnostic('invalid_threshold', event, id));\n      continue;\n    }\n    if (magnitude < alert.condition_value) continue;\n    const notification = (channel, destination) => ({ json: { event, alert_id: id, channel, destination } });\n    const slack = alert.slack_destination;\n    if (slack !== null && slack !== undefined) {\n      if (typeof slack !== 'string' || !/^[A-Z0-9]{2,80}$/.test(slack)) output.push(diagnostic('invalid_slack_destination', event, id));\n      else output.push(notification('slack', slack));\n    }\n    const email = alert.email_destination;\n    if (email !== null && email !== undefined) {\n      if (!validEmail(email)) output.push(diagnostic('invalid_email_destination', event, id));\n      else output.push(notification('email', email));\n    }\n  }\n}\nreturn output;\n"
+        "jsCode": "const output = [];\nconst safeEvent = event => ({\n  source: typeof event?.source === 'string' && /^(?:usgs|demo\\.usgs)$/.test(event.source) ? event.source : undefined,\n  external_id: typeof event?.external_id === 'string' && /^[!-~]{1,128}$/.test(event.external_id) ? event.external_id : undefined,\n});\nconst diagnostic = (code, event, alertId) => ({ json: { channel: 'diagnostic', code, ...safeEvent(event), ...(alertId ? { alert_id: alertId } : {}) } });\nconst validAlertId = id => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) && !/^0{8}-0{4}-0{4}-0{4}-0{12}$/i.test(id);\nconst validEmail = value => typeof value === 'string' && value.length <= 254 && /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)+$/.test(value) && !value.includes('..');\nfor (const item of $input.all()) {\n  const { event, alerts } = item.json ?? {};\n  const magnitude = event?.data?.magnitude;\n  if (event?.contract_version !== 1 || typeof event?.source !== 'string' || !/^(?:usgs|demo\\.usgs)$/.test(event.source) || typeof event?.external_id !== 'string' || !/^[!-~]{1,128}$/.test(event.external_id) || event?.event_type !== 'earthquake' || typeof magnitude !== 'number' || !Number.isFinite(magnitude) || !Array.isArray(alerts)) {\n    output.push(diagnostic('invalid_event_or_envelope', event));\n    continue;\n  }\n  for (const alert of alerts) {\n    if (!alert || alert.enabled !== true) continue;\n    if (!validAlertId(alert.id)) { output.push(diagnostic('invalid_alert_id', event)); continue; }\n    const id = alert.id;\n    if (alert.event_type !== 'earthquake' || alert.condition_field !== 'magnitude' || alert.condition_operator !== 'gte' || alert.condition_value_type !== 'number') {\n      output.push(diagnostic('unsupported_condition', event, id));\n      continue;\n    }\n    if (typeof alert.condition_value !== 'number' || !Number.isFinite(alert.condition_value)) {\n      output.push(diagnostic('invalid_threshold', event, id));\n      continue;\n    }\n    if (magnitude < alert.condition_value) continue;\n    const notification = (channel, destination) => ({ json: { event, alert_id: id, alert_name: alert.name, channel, destination } });\n    const slack = alert.slack_destination;\n    if (slack !== null && slack !== undefined) {\n      if (typeof slack !== 'string' || !/^[A-Z0-9]{2,80}$/.test(slack)) output.push(diagnostic('invalid_slack_destination', event, id));\n      else output.push(notification('slack', slack));\n    }\n    const email = alert.email_destination;\n    if (email !== null && email !== undefined) {\n      if (!validEmail(email)) output.push(diagnostic('invalid_email_destination', event, id));\n      else output.push(notification('email', email));\n    }\n  }\n}\nreturn output;\n"
       }
     },
     {
@@ -252,8 +241,6 @@
         128
       ],
       "parameters": {
-        "mode": "manual",
-        "includeOtherFields": false,
         "assignments": {
           "assignments": [
             {
@@ -263,7 +250,8 @@
               "type": "string"
             }
           ]
-        }
+        },
+        "options": {}
       }
     },
     {
@@ -272,20 +260,19 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        2912,
-        320
+        2944,
+        1056
       ],
       "parameters": {
-        "mode": "rules",
         "rules": {
           "values": [
             {
-              "outputKey": "Slack",
               "conditions": {
                 "options": {
                   "caseSensitive": true,
                   "leftValue": "",
-                  "typeValidation": "strict"
+                  "typeValidation": "strict",
+                  "version": 1
                 },
                 "conditions": [
                   {
@@ -301,12 +288,12 @@
               }
             },
             {
-              "outputKey": "Email",
               "conditions": {
                 "options": {
                   "caseSensitive": true,
                   "leftValue": "",
-                  "typeValidation": "strict"
+                  "typeValidation": "strict",
+                  "version": 1
                 },
                 "conditions": [
                   {
@@ -339,8 +326,6 @@
         96
       ],
       "parameters": {
-        "mode": "runOnceForAllItems",
-        "language": "javaScript",
         "jsCode": "const output = [];\nconst escape = value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nfor (const item of $input.all()) {\n  const { event, alert_id: alertId, channel, destination } = item.json ?? {};\n  if (channel !== 'slack' || typeof destination !== 'string' || !/^[A-Z0-9]{2,80}$/.test(destination) || typeof event?.external_id !== 'string' || !/^[!-~]{1,128}$/.test(event.external_id) || typeof event?.title !== 'string' || typeof event?.data?.magnitude !== 'number' || !Number.isFinite(event.data.magnitude)) {\n    throw new Error('invalid_slack_notification');\n  }\n  const synthetic = event.source === 'demo.usgs' ? '[SYNTHETIC] ' : '';\n  const text = `${synthetic}Earthquake M ${event.data.magnitude}: ${escape(event.title)}\\nOccurred: ${escape(event.occurred_at)}\\nSource: ${escape(event.source)}\\nEvent: ${escape(event.external_id)}\\nAlert: ${escape(alertId)}`;\n  output.push({ json: { destination, text } });\n}\nreturn output;\n"
       },
       "onError": "continueErrorOutput"
@@ -351,25 +336,21 @@
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.7,
       "position": [
-        3360,
-        0
+        3328,
+        -16
       ],
       "parameters": {
-        "resource": "message",
-        "operation": "post",
-        "authentication": "accessToken",
         "select": "channel",
         "channelId": {
           "__rl": true,
           "mode": "id",
           "value": "={{ $json.destination }}"
         },
-        "messageType": "text",
         "text": "={{ $json.text }}",
         "otherOptions": {
           "includeLinkToWorkflow": false,
-          "mrkdwn": false,
           "link_names": false,
+          "mrkdwn": false,
           "unfurl_links": false,
           "unfurl_media": false
         }
@@ -386,12 +367,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.5,
       "position": [
-        3584,
-        464
+        3536,
+        -304
       ],
       "parameters": {
-        "mode": "manual",
-        "includeOtherFields": false,
         "assignments": {
           "assignments": [
             {
@@ -425,7 +404,8 @@
               "type": "string"
             }
           ]
-        }
+        },
+        "options": {}
       }
     },
     {
@@ -438,57 +418,8 @@
         768
       ],
       "parameters": {
-        "batchSize": 1,
         "options": {
           "reset": false
-        }
-      }
-    },
-    {
-      "id": "f906aade-0a4b-433c-b471-3c1c96d4e09e",
-      "name": "Record unsupported email diagnostic",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.5,
-      "position": [
-        3136,
-        288
-      ],
-      "parameters": {
-        "mode": "manual",
-        "includeOtherFields": false,
-        "assignments": {
-          "assignments": [
-            {
-              "id": "email-channel",
-              "name": "channel",
-              "value": "diagnostic",
-              "type": "string"
-            },
-            {
-              "id": "email-code",
-              "name": "code",
-              "value": "email_transport_not_implemented",
-              "type": "string"
-            },
-            {
-              "id": "email-source",
-              "name": "source",
-              "value": "={{ $json.event.source }}",
-              "type": "string"
-            },
-            {
-              "id": "email-external-id",
-              "name": "external_id",
-              "value": "={{ $json.event.external_id }}",
-              "type": "string"
-            },
-            {
-              "id": "email-alert-id",
-              "name": "alert_id",
-              "value": "={{ $json.alert_id }}",
-              "type": "string"
-            }
-          ]
         }
       }
     },
@@ -498,12 +429,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.5,
       "position": [
-        3136,
-        480
+        2336,
+        1072
       ],
       "parameters": {
-        "mode": "manual",
-        "includeOtherFields": false,
         "assignments": {
           "assignments": [
             {
@@ -537,7 +466,8 @@
               "type": "string"
             }
           ]
-        }
+        },
+        "options": {}
       }
     },
     {
@@ -550,8 +480,6 @@
         288
       ],
       "parameters": {
-        "mode": "manual",
-        "includeOtherFields": false,
         "assignments": {
           "assignments": [
             {
@@ -585,7 +513,8 @@
               "type": "string"
             }
           ]
-        }
+        },
+        "options": {}
       }
     },
     {
@@ -594,12 +523,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.5,
       "position": [
-        3584,
-        768
+        3808,
+        432
       ],
       "parameters": {
-        "mode": "manual",
-        "includeOtherFields": false,
         "assignments": {
           "assignments": [
             {
@@ -633,7 +560,154 @@
               "type": "string"
             }
           ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f883a7a2-d3a1-457e-9e08-f342fa08bd70",
+      "name": "Prepare safe Email text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3136,
+        944
+      ],
+      "parameters": {
+        "jsCode": "const output = [];\nconst mailbox = value => typeof value === 'string' && value.length <= 254 && /^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*@[A-Za-z0-9]+(?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z0-9]+(?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$/.test(value);\nconst clean = (value, limit) => typeof value === 'string' ? value.replace(/[\\u0000-\\u001f\\u007f-\\u009f]/g, ' ').replace(/\\s+/g, ' ').trim().slice(0, limit) : '';\nfor (const [index, item] of $input.all().entries()) {\n  const { event, alert_name: alertName, channel, destination } = item.json ?? {};\n  const magnitude = event?.data?.magnitude;\n  const title = clean(event?.title, 160);\n  const occurred = typeof event?.occurred_at === 'string' && Number.isFinite(Date.parse(event.occurred_at)) ? new Date(event.occurred_at).toISOString() : '';\n  if (channel !== 'email' || !mailbox(destination) || event?.contract_version !== 1 || !/^(?:usgs|demo\\.usgs)$/.test(event?.source) || event?.event_type !== 'earthquake' || !title || !occurred || typeof magnitude !== 'number' || !Number.isFinite(magnitude)) {\n    throw new Error('invalid_email_notification');\n  }\n  const name = typeof alertName === 'string' && !/[\\u0000-\\u001f\\u007f-\\u009f]/.test(alertName) ? clean(alertName, 120) : '';\n  let sourceUrl = '';\n  if (typeof event.source_url === 'string' && event.source_url.length <= 2048 && /^https?:\\/\\/[^\\s\\u0000-\\u001f\\u007f-\\u009f]+$/.test(event.source_url)) {\n    const authority = /^https?:\\/\\/([^\\/?#]+)/.exec(event.source_url)?.[1];\n    const parts = /^([^:]+)(?::([0-9]{1,5}))?$/.exec(authority ?? '');\n    const host = parts?.[1];\n    const port = parts?.[2];\n    if (host && host.length <= 253 && host.split('.').every(label => /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(label)) && (!port || (Number(port) >= 1 && Number(port) <= 65535))) sourceUrl = event.source_url;\n  }\n  const synthetic = event.source === 'demo.usgs' ? '[SYNTHETIC] ' : '';\n  const lines = [`${synthetic}Sonrisa earthquake alert`, ...(name ? [`Alert: ${name}`] : []), `Earthquake: M ${magnitude} — ${title}`, `Occurred: ${occurred}`, `Source: ${event.source === 'usgs' ? 'USGS' : 'USGS (synthetic test)'}`, ...(sourceUrl ? [`Event URL: ${sourceUrl}`] : [])];\n  output.push({ json: { destination, subject: `${synthetic}Sonrisa alert: ${title}`, text: lines.join('\\n') }, pairedItem: { item: index } });\n}\nreturn output;\n"
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "6ea73529-192a-42e2-b16b-f8c6962c78eb",
+      "name": "Send Email notification",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        3360,
+        944
+      ],
+      "parameters": {
+        "fromEmail": "sonrisa@example.test",
+        "toEmail": "={{ $json.destination }}",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.text }}",
+        "options": {
+          "appendAttribution": false
         }
+      },
+      "disabled": false,
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "6bd20528-3c6a-437c-a2d9-ac315409b663",
+      "name": "Record Email result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3696,
+        768
+      ],
+      "parameters": {
+        "jsCode": "const output = [];\nfor (const [index, item] of $input.all().entries()) {\n  const origin = $('Process each notification').item.json;\n  const result = item.json ?? {};\n  const destination = origin?.destination;\n  const accepted = result.accepted;\n  const rejected = result.rejected;\n  const envelope = result.envelope;\n  const confirmed = result && typeof result === 'object' && typeof destination === 'string' && destination.length > 0 && !('error' in result) && !('errors' in result) &&\n    Array.isArray(accepted) && accepted.length === 1 && accepted[0] === destination &&\n    Array.isArray(rejected) && rejected.length === 0 &&\n    (envelope === undefined || (envelope && Array.isArray(envelope.to) && envelope.to.length === 1 && envelope.to[0] === destination));\n  const source = origin?.event?.source;\n  const externalId = origin?.event?.external_id;\n  const alertId = origin?.alert_id;\n  output.push({ json: { channel: 'diagnostic', code: confirmed ? 'email_accepted' : 'email_outcome_unconfirmed_discarded',\n    ...(typeof source === 'string' && /^(?:usgs|demo\\.usgs)$/.test(source) ? { source } : {}),\n    ...(typeof externalId === 'string' && /^[!-~]{1,128}$/.test(externalId) ? { external_id: externalId } : {}),\n    ...(typeof alertId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(alertId) ? { alert_id: alertId } : {})\n  }, pairedItem: { item: index } });\n}\nreturn output;\n"
+      }
+    },
+    {
+      "id": "207a51a5-1ab8-4476-9a5c-9ae59a1f91a3",
+      "name": "Record invalid Email diagnostic",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        3360,
+        1184
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "invalid-email-channel",
+              "name": "channel",
+              "value": "diagnostic",
+              "type": "string"
+            },
+            {
+              "id": "invalid-email-code",
+              "name": "code",
+              "value": "invalid_email_notification_discarded",
+              "type": "string"
+            },
+            {
+              "id": "invalid-email-source",
+              "name": "source",
+              "value": "={{ $('Process each notification').item.json.event.source }}",
+              "type": "string"
+            },
+            {
+              "id": "invalid-email-external-id",
+              "name": "external_id",
+              "value": "={{ $('Process each notification').item.json.event.external_id }}",
+              "type": "string"
+            },
+            {
+              "id": "invalid-email-alert-id",
+              "name": "alert_id",
+              "value": "={{ $('Process each notification').item.json.alert_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "d5e6bca7-0a36-43cb-86cd-b9814ffde552",
+      "name": "Record exhausted Email diagnostic",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        3808,
+        1104
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "exhausted-email-channel",
+              "name": "channel",
+              "value": "diagnostic",
+              "type": "string"
+            },
+            {
+              "id": "exhausted-email-code",
+              "name": "code",
+              "value": "email_retries_exhausted_discarded",
+              "type": "string"
+            },
+            {
+              "id": "exhausted-email-source",
+              "name": "source",
+              "value": "={{ $('Process each notification').item.json.event.source }}",
+              "type": "string"
+            },
+            {
+              "id": "exhausted-email-external-id",
+              "name": "external_id",
+              "value": "={{ $('Process each notification').item.json.event.external_id }}",
+              "type": "string"
+            },
+            {
+              "id": "exhausted-email-alert-id",
+              "name": "alert_id",
+              "value": "={{ $('Process each notification').item.json.alert_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
       }
     }
   ],
@@ -788,7 +862,7 @@
         ],
         [
           {
-            "node": "Record unsupported email diagnostic",
+            "node": "Prepare safe Email text",
             "type": "main",
             "index": 0
           }
@@ -814,24 +888,6 @@
         [
           {
             "node": "Record invalid Slack diagnostic",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Send Slack notification": {
-      "main": [
-        [
-          {
-            "node": "Record accepted Slack diagnostic",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Record exhausted Slack diagnostic",
             "type": "main",
             "index": 0
           }
@@ -867,17 +923,6 @@
         ]
       ]
     },
-    "Record unsupported email diagnostic": {
-      "main": [
-        [
-          {
-            "node": "Process each notification",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Record unsupported channel diagnostic": {
       "main": [
         [
@@ -905,6 +950,93 @@
         [
           {
             "node": "Process each notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare safe Email text": {
+      "main": [
+        [
+          {
+            "node": "Send Email notification",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record invalid Email diagnostic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Email result": {
+      "main": [
+        [
+          {
+            "node": "Process each notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record invalid Email diagnostic": {
+      "main": [
+        [
+          {
+            "node": "Process each notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record exhausted Email diagnostic": {
+      "main": [
+        [
+          {
+            "node": "Process each notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Slack notification": {
+      "main": [
+        [
+          {
+            "node": "Record accepted Slack diagnostic",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record exhausted Slack diagnostic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email notification": {
+      "main": [
+        [
+          {
+            "node": "Record Email result",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record exhausted Email diagnostic",
             "type": "main",
             "index": 0
           }

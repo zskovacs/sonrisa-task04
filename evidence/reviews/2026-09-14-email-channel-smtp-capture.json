@@ -1,0 +1,10 @@
+{
+  "capture_id": "58e212d4-02a8-4926-96a2-bbfec1e49321",
+  "from": "sonrisa@example.test",
+  "to": "email-a@example.test",
+  "subject": "[SYNTHETIC] Sonrisa alert: SYNTHETIC SMTP4DEV Email milestone validation",
+  "content_type": "text/plain",
+  "body": "[SYNTHETIC] Sonrisa earthquake alert\nAlert: Email-only validation\nEarthquake: M -100 — SYNTHETIC SMTP4DEV Email milestone validation\nOccurred: 2026-09-14T13:21:00.000Z\nSource: USGS (synthetic test)\nEvent URL: https://earthquake.usgs.gov/earthquakes/eventpage/test",
+  "attachments": 0,
+  "note": "Controlled reserved test addresses. Successful SMTP submission and SMTP4DEV capture; external inbox delivery not tested."
+}

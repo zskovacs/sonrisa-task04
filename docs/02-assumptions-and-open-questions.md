@@ -11,21 +11,21 @@ Current decisions follow [ADR-012](adr/ADR-012-use-n8n-native-runtime-state.md),
 - The actual PostgreSQL configuration model has alerts with inline conditions and users with shared email/Slack destinations (ADR-010). Preserve revision/atomicity validation and FluentValidation.
 - ASP.NET Core/Razor Pages is the local management plane; shared DEV PostgreSQL and hosted n8n remain externally operated. EF owns product migrations; n8n reads configuration directly. There is no application runtime API.
 - n8n owns normalization, native technical deduplication, evaluation, channel dispatch, bounded retry and execution visibility. Product runtime tables/queues/recovery are rejected.
-- Slack uses five total attempts per notification; exhaustion discards that item and continues subsequent notifications. Ambiguous duplicates/loss and dedup-before-delivery loss are accepted.
-- Email is required next, through this same runtime's channel branch. The existing historical SMTP implementation does not make email active in the replacement milestone-5 workflow.
+- Slack and Email use five total native attempts per notification; exhaustion discards that item and continues subsequent notifications. Ambiguous duplicates/loss and dedup-before-delivery loss are accepted.
+- Email is supported through the same inactive runtime's channel branch. The only upstream exception is an alert-name query projection/pass-through used for Email text; selection, matching, ownership and deduplication remain unchanged.
 
 ## Engineering assumptions and limits
 
 | Area | Current decision or assumption |
 | --- | --- |
 | Initial window | Process the bounded current one-hour feed; no cursor/archive import or completeness/latency guarantee. Manual tests suppress transport until the one authorized send. |
-| Schedule | Inactive/manual for milestone 5. Five-minute polling is proposed only for later reviewed activation. |
+| Schedule | Inactive/manual after milestone 6. Five-minute polling is proposed only for later reviewed activation. |
 | Canonical event | Versioned workflow-only envelope plus finite magnitude; reject malformed required data, omit invalid optional URL. No product persistence is needed. |
 | Identity | Same retained source/external-ID key is normally filtered. Provider preferred IDs can change; aliases, cross-provider merging, corrections and retractions remain deliberately unimplemented. |
 | Dedup history | n8n node-scoped history size 10,000. Installed 2.38.7 checks stored count plus incoming batch before filtering and may throw at the cap; no rolling/permanent/atomic guarantee. History loss/reset or identity recreation can permit repeats. |
 | Rule sampling | Sample current enabled configuration when each new event reaches the query. No historical rematching after an alert is created or edited. |
 | Delivery | Best-effort five-attempt native retry per notification; explicit error output continues the loop. A seen event's notification may be lost after DB/transport failure; no next-day recovery or backlog drain. |
-| Unsupported channels | Email and unknown channels are visible skips, never delivered. Invalid destinations are handled independently so a bad channel cannot suppress another valid channel. |
+| Unsupported channels | Unknown channels are visible skips, never delivered. Missing/invalid Email destinations are independently discarded/diagnosed so a bad channel cannot suppress another valid channel. |
 | Visibility | Use n8n executions/errors and source/external/alert IDs. No new product history tables or global n8n OTEL requirement. |
 | Data removal | Applied runtime state is removed by a reviewed forward migration; original migrations and historical evidence remain. An optional restricted backup stays outside Git. |
 
@@ -33,7 +33,7 @@ Current decisions follow [ADR-012](adr/ADR-012-use-n8n-native-runtime-state.md),
 
 | Area | Remaining question / revisit point |
 | --- | --- |
-| Required email transport | Next runtime milestone: integrate the SMTP/email branch into the same flow, validate authorized recipient/provider and native retry semantics. Existing SMTP4DEV evidence is historical; production inbox placement is unproven. |
+| External Email delivery | SMTP4DEV capture validates the implemented native SMTP branch, credential binding, message construction and capture. A real external provider and recipient inbox remain untested; a provider swap should need credential/sender configuration only. |
 | Admin purpose | Define the smallest product admin view independently of the rejected event/delivery ledger. Technical debugging remains in n8n. |
 | Unattended activation | Review history capacity behavior, authorized destinations, source frequency, timeouts and shared DEV load before activating the future five-minute schedule. No automatic history reset is currently approved. |
 | Scale | No numeric production event/user/latency target exists. Do not infer one or add concurrency infrastructure speculatively. |

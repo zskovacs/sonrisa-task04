@@ -18,7 +18,7 @@ const replacements = {
   __INGEST_MODE__: JSON.stringify(mode),
   __INGEST_FIXTURE_JSON__: JSON.stringify(fixtureJson),
 };
-for (const name of ['select-ingest-input', 'normalize-earthquakes', 'evaluate-alerts', 'prepare-slack-message'])
+for (const name of ['select-ingest-input', 'normalize-earthquakes', 'evaluate-alerts', 'prepare-slack-message', 'prepare-email-message', 'record-email-result'])
   replacements[`__CODE_${name.replaceAll('-', '_').toUpperCase()}__`] = JSON.stringify(read(`runtime/${name}.js`));
 replacements.__SQL_SELECT_ENABLED_ALERTS__ = JSON.stringify(read('sql/select-enabled-alerts.sql'));
 const code = read('sdk/process.sdk.js').replace(/__[A-Z0-9_]+__/g, token => {

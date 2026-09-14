@@ -26,7 +26,7 @@ for (const item of $input.all()) {
       continue;
     }
     if (magnitude < alert.condition_value) continue;
-    const notification = (channel, destination) => ({ json: { event, alert_id: id, channel, destination } });
+    const notification = (channel, destination) => ({ json: { event, alert_id: id, alert_name: alert.name, channel, destination } });
     const slack = alert.slack_destination;
     if (slack !== null && slack !== undefined) {
       if (typeof slack !== 'string' || !/^[A-Z0-9]{2,80}$/.test(slack)) output.push(diagnostic('invalid_slack_destination', event, id));

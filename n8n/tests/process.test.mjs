@@ -10,7 +10,7 @@ const run = (name, items) => JSON.parse(JSON.stringify(runInNewContext(
   { $input: { all: () => items.map(json => ({ json })), first: () => ({ json: items[0] }) } }
 ).map(item => item.json)));
 const fixture = JSON.parse(read('../fixtures/earthquakes.json'));
-const alert = (overrides = {}) => ({ id: '22222222-2222-4222-8222-222222222222', enabled: true, event_type: 'earthquake', condition_field: 'magnitude', condition_operator: 'gte', condition_value_type: 'number', condition_value: 5, slack_destination: 'C123ABC', email_destination: 'p@example.test', ...overrides });
+const alert = (overrides = {}) => ({ id: '22222222-2222-4222-8222-222222222222', name: 'Coastal watch', enabled: true, event_type: 'earthquake', condition_field: 'magnitude', condition_operator: 'gte', condition_value_type: 'number', condition_value: 5, slack_destination: 'C123ABC', email_destination: 'p@example.test', ...overrides });
 const event = (magnitude, external_id = 'test') => ({ contract_version: 1, source: 'demo.usgs', external_id, event_type: 'earthquake', occurred_at: '2026-09-14T16:00:00.000Z', title: '<@U123> & coast', source_url: null, data: { magnitude } });
 
 test('one normalized feed yields three canonical events and one diagnostic envelope', () => {
@@ -26,6 +26,7 @@ test('evaluator consumes every SQL event envelope with threshold and owner expan
   assert.equal(output.filter(x => x.channel === 'slack').length, 4);
   assert.equal(output.filter(x => x.channel === 'email').length, 2);
   assert.deepEqual(output.filter(x => x.channel === 'slack').map(x => x.event.external_id), ['1', '1', '2', '2']);
+  assert.deepEqual(output.filter(x => x.channel === 'email').map(x => x.alert_name), ['Coastal watch', 'Coastal watch']);
 });
 
 test('malformed event and config emit no notification; channel validation is independent', () => {
@@ -40,16 +41,38 @@ test('malformed event and config emit no notification; channel validation is ind
   assert.equal(JSON.stringify(output.filter(x => x.channel === 'diagnostic')).includes('evil@example.test'), false);
 });
 
+test('matched owners keep independent Slack and Email destinations even without a usable alert name', () => {
+  const other = alert({ id: '33333333-3333-4333-8333-333333333333', name: null, slack_destination: 'C999ABC', email_destination: 'other@example.test' });
+  const output = run('evaluate-alerts', [{ event: event(5), alerts: [alert(), other] }]);
+  assert.deepEqual(output.filter(x => x.channel === 'email').map(x => [x.destination, x.alert_name]), [['p@example.test', 'Coastal watch'], ['other@example.test', null]]);
+  assert.deepEqual(output.filter(x => x.channel === 'slack').map(x => x.destination), ['C123ABC', 'C999ABC']);
+});
+
+test('empty persisted channel destinations produce diagnostics without notifications', () => {
+  const output = run('evaluate-alerts', [{ event: event(5), alerts: [alert({ slack_destination: '', email_destination: '' })] }]);
+  assert.deepEqual(output.map(x => x.code), ['invalid_slack_destination', 'invalid_email_destination']);
+  assert.equal(output.some(x => x.channel !== 'diagnostic'), false);
+});
+
 test('Slack message escapes user text and omits raw destination', () => {
   const result = run('prepare-slack-message', [{ event: event(5), alert_id: alert().id, channel: 'slack', destination: 'C123ABC' }]);
   assert.match(result[0].text, /&lt;@U123&gt; &amp; coast/);
   assert.doesNotMatch(result[0].text, /C123ABC/);
 });
 
-test('process builder has no persistence or email transport', () => {
+test('process builder includes native Email transport without persistence', () => {
   const sdk = execFileSync(process.execPath, [new URL('../build-workflow.mjs', import.meta.url).pathname, 'process'], { encoding: 'utf8' });
   assert.match(sdk, /removeDuplicateInputItems/);
   assert.match(sdk, /removeItemsSeenInPreviousExecutions/);
   assert.match(sdk, /maxTries: 5/);
-  assert.doesNotMatch(sdk, /notification_deliveries|source_events|emailSend|executeOnce: true|__[A-Z0-9_]+__/);
+  assert.match(sdk, /emailSend/);
+  assert.match(sdk, /appendAttribution: false/);
+  assert.doesNotMatch(sdk, /notification_deliveries|source_events|executeOnce: true|__[A-Z0-9_]+__/);
+});
+
+test('configuration SQL projects alert name without changing owner join or event binding', () => {
+  const sql = read('../sql/select-enabled-alerts.sql');
+  assert.match(sql, /'id', a\.id, 'name', a\.name/);
+  assert.match(sql, /a\.owner_id/);
+  assert.match(sql, /\$1::jsonb/);
 });

@@ -1,0 +1,122 @@
+{
+  "workflowId": "aVijfnQr0kdLAJHP",
+  "n8nVersion": "2.38.7",
+  "executions": [
+    {
+      "execution": "54",
+      "case": "Deterministic full path; two owners, email-only + both",
+      "normalized": 4,
+      "malformed": 1,
+      "unique": 3,
+      "notifications": 6,
+      "emailAcceptedMock": 4,
+      "slackAcceptedMock": 2,
+      "ownerDestinationsCorrect": true,
+      "thresholds": [
+        -101,
+        -100,
+        -99
+      ]
+    },
+    {
+      "execution": "55",
+      "case": "Repeated full fixture",
+      "kept": 0,
+      "discardedDuplicates": 3,
+      "queried": false,
+      "transportAttempted": false
+    },
+    {
+      "execution": "56",
+      "case": "Email failure isolation",
+      "emailAAttempts": 5,
+      "elapsedMs": 20113,
+      "order": [
+        "Email A discarded",
+        "Slack B accepted (mock)",
+        "Email C accepted (mock)"
+      ],
+      "complete": true
+    },
+    {
+      "execution": "57",
+      "case": "Inverse Slack failure isolation",
+      "slackAAttempts": 5,
+      "elapsedMs": 20073,
+      "order": [
+        "Slack A discarded",
+        "Email A accepted (mock)",
+        "Slack B accepted (mock)",
+        "Email B accepted (mock)"
+      ],
+      "complete": true
+    },
+    {
+      "execution": "58",
+      "case": "Pinned SQL configuration safety",
+      "databaseReadMocked": true,
+      "noEmailDestinationSkipped": true,
+      "invalidEmailRejectedByEvaluation": true,
+      "invalidMailboxRejectedByPreparation": true,
+      "laterEmailProcessed": true,
+      "emailAttempts": 1,
+      "slackAttempts": 1
+    },
+    {
+      "execution": "59",
+      "case": "Pinned notification router unsupported channel",
+      "pinned": [
+        "Manual trigger",
+        "HTTP",
+        "Previous dedup",
+        "SQL",
+        "Evaluator"
+      ],
+      "unsupportedSkipped": true,
+      "emailAttempts": 1,
+      "slackAttempts": 1
+    },
+    {
+      "execution": "60",
+      "case": "Live USGS retrieval through unchanged common pipeline",
+      "liveHttp": true,
+      "canonical": 11,
+      "unique": 11,
+      "configurationsQueried": 11,
+      "notifications": 46,
+      "slackAcceptedMock": 23,
+      "emailAcceptedMock": 23,
+      "realSends": 0
+    },
+    {
+      "execution": "61",
+      "case": "Actual SQL one-recipient no-send SMTP preflight",
+      "notifications": 1,
+      "channel": "email",
+      "intendedTestProfile": true,
+      "slackAttempted": false
+    },
+    {
+      "execution": "62",
+      "case": "One native SMTP send",
+      "smtpResponse": "250 Mail accepted",
+      "acceptedCount": 1,
+      "rejectedCount": 0,
+      "diagnostic": "email_accepted",
+      "captureId": "58e212d4-02a8-4926-96a2-bbfec1e49321",
+      "captureCountBefore": 1,
+      "captureCountAfter": 2,
+      "bodyMatchesPrepared": true,
+      "recipientMatchesPersisted": true,
+      "externalInboxValidated": false
+    },
+    {
+      "execution": "63",
+      "case": "SMTP event full-entry replay with transport mock safeguards",
+      "kept": 0,
+      "discardedDuplicates": 1,
+      "queried": false,
+      "transportAttempted": false
+    }
+  ]
+}

@@ -13,7 +13,9 @@ const specs = [
   ['Route notification channel', 'switch'], ['Prepare safe Slack text', 'code'], ['Send Slack notification', 'slack'],
   ['Record accepted Slack diagnostic', 'set'], ['Record exhausted Slack diagnostic', 'set'],
   ['Record invalid Slack diagnostic', 'set'],
-  ['Record unsupported email diagnostic', 'set'], ['Record unsupported channel diagnostic', 'set'], ['Complete manual processing', 'set'],
+  ['Prepare safe Email text', 'code'], ['Send Email notification', 'emailSend'], ['Record Email result', 'code'],
+  ['Record invalid Email diagnostic', 'set'], ['Record exhausted Email diagnostic', 'set'],
+  ['Record unsupported channel diagnostic', 'set'], ['Complete manual processing', 'set'],
 ];
 const assignment = (name, value) => ({ id: name, name, value, type: 'string' });
 const set = (...values) => ({ mode: 'manual', includeOtherFields: false, assignments: { assignments: values.map(([name, value]) => assignment(name, value)) } });
@@ -22,7 +24,6 @@ const paired = [
   ['external_id', "={{ $('Process each notification').item.json.event.external_id }}"],
   ['alert_id', "={{ $('Process each notification').item.json.alert_id }}"],
 ];
-const direct = [['source', '={{ $json.event.source }}'], ['external_id', '={{ $json.event.external_id }}'], ['alert_id', '={{ $json.alert_id }}']];
 const fallback = [
   ['source', "={{ $json.event?.source ?? $json.source ?? '' }}"],
   ['external_id', "={{ $json.event?.external_id ?? $json.external_id ?? '' }}"],
@@ -52,11 +53,15 @@ const params = {
   'Process each notification': { batchSize: 1, options: { reset: false } },
   'Route notification channel': { mode: 'rules', rules: { values: [{ outputKey: 'Slack', conditions: routeCondition('slack') }, { outputKey: 'Email', conditions: routeCondition('email') }] }, options: { fallbackOutput: 'extra', renameFallbackOutput: 'Diagnostic or unsupported' } },
   'Prepare safe Slack text': code('prepare-slack-message'),
+  'Prepare safe Email text': code('prepare-email-message'),
+  'Send Email notification': { resource: 'email', operation: 'send', fromEmail: 'sonrisa@example.test', toEmail: '={{ $json.destination }}', subject: '={{ $json.subject }}', emailFormat: 'text', text: '={{ $json.text }}', options: { appendAttribution: false } },
+  'Record Email result': code('record-email-result'),
+  'Record invalid Email diagnostic': set(['channel', 'diagnostic'], ['code', 'invalid_email_notification_discarded'], ...paired),
+  'Record exhausted Email diagnostic': set(['channel', 'diagnostic'], ['code', 'email_retries_exhausted_discarded'], ...paired),
   'Send Slack notification': { resource: 'message', operation: 'post', authentication: 'accessToken', select: 'channel', channelId: { __rl: true, mode: 'id', value: '={{ $json.destination }}' }, messageType: 'text', text: '={{ $json.text }}', otherOptions: { includeLinkToWorkflow: false, mrkdwn: false, link_names: false, unfurl_links: false, unfurl_media: false } },
   'Record accepted Slack diagnostic': set(['channel', 'diagnostic'], ['code', 'slack_accepted'], ...paired),
   'Record exhausted Slack diagnostic': set(['channel', 'diagnostic'], ['code', 'slack_retries_exhausted_discarded'], ...paired),
   'Record invalid Slack diagnostic': set(['channel', 'diagnostic'], ['code', 'invalid_slack_notification_discarded'], ...paired),
-  'Record unsupported email diagnostic': set(['channel', 'diagnostic'], ['code', 'email_transport_not_implemented'], ...direct),
   'Record unsupported channel diagnostic': set(['channel', 'diagnostic'], ['code', "={{ $json.code ?? 'unsupported_channel' }}"], ...fallback),
   'Complete manual processing': set(['code', 'processing_complete']),
 };
@@ -68,18 +73,23 @@ const edgeList = [
   ['Deduplicate current feed',0,'Deduplicate previous executions'], ['Deduplicate previous executions',0,'Load owner alert configuration'],
   ['Load owner alert configuration',0,'Evaluate typed magnitude alerts'], ['Evaluate typed magnitude alerts',0,'Process each notification'],
   ['Process each notification',0,'Complete manual processing'], ['Process each notification',1,'Route notification channel'],
-  ['Route notification channel',0,'Prepare safe Slack text'], ['Route notification channel',1,'Record unsupported email diagnostic'],
+  ['Route notification channel',0,'Prepare safe Slack text'], ['Route notification channel',1,'Prepare safe Email text'],
   ['Route notification channel',2,'Record unsupported channel diagnostic'], ['Prepare safe Slack text',0,'Send Slack notification'],
   ['Send Slack notification',0,'Record accepted Slack diagnostic'], ['Send Slack notification',1,'Record exhausted Slack diagnostic'],
   ['Prepare safe Slack text',1,'Record invalid Slack diagnostic'],
+  ['Prepare safe Email text',0,'Send Email notification'], ['Prepare safe Email text',1,'Record invalid Email diagnostic'],
+  ['Send Email notification',0,'Record Email result'], ['Send Email notification',1,'Record exhausted Email diagnostic'],
   ['Record accepted Slack diagnostic',0,'Process each notification'], ['Record exhausted Slack diagnostic',0,'Process each notification'],
   ['Record invalid Slack diagnostic',0,'Process each notification'],
-  ['Record unsupported email diagnostic',0,'Process each notification'], ['Record unsupported channel diagnostic',0,'Process each notification'],
+  ['Record Email result',0,'Process each notification'], ['Record invalid Email diagnostic',0,'Process each notification'],
+  ['Record exhausted Email diagnostic',0,'Process each notification'], ['Record unsupported channel diagnostic',0,'Process each notification'],
 ];
 const snapshot = () => {
-  const nodes = specs.map(([name, type], i) => ({ id: `node-${i}`, name, type: `n8n-nodes-base.${type}`, typeVersion: 1, position: [i * 200, 0], parameters: structuredClone(params[name] ?? {}) }));
+  const nodes = specs.map(([name, type], i) => ({ id: `node-${i}`, name, type: `n8n-nodes-base.${type}`, typeVersion: type === 'emailSend' ? 2.1 : 1, position: [i * 200, 0], parameters: structuredClone(params[name] ?? {}) }));
   Object.assign(nodes.find(n => n.name === 'Send Slack notification'), { retryOnFail: true, maxTries: 5, waitBetweenTries: 5000, onError: 'continueErrorOutput' });
   nodes.find(n => n.name === 'Prepare safe Slack text').onError = 'continueErrorOutput';
+  Object.assign(nodes.find(n => n.name === 'Send Email notification'), { retryOnFail: true, maxTries: 5, waitBetweenTries: 5000, onError: 'continueErrorOutput' });
+  nodes.find(n => n.name === 'Prepare safe Email text').onError = 'continueErrorOutput';
   const connections = {};
   for (const [source, output, target] of edgeList) {
     connections[source] ??= { main: [] };
@@ -89,16 +99,20 @@ const snapshot = () => {
   return { name: 'Sonrisa - Process Alerts - DEV', description: 'Synthetic export test', active: false, nodes, connections, settings: { executionOrder: 'v1' } };
 };
 
-test('exporter accepts deployed node ordering and strips Slack-only remote metadata', () => {
+test('exporter accepts local candidate node ordering and strips transport credential references', () => {
   const candidate = snapshot();
   candidate.id = 'remote-id';
   candidate.nodes.reverse();
   candidate.nodes.find(n => n.name === 'Send Slack notification').credentials = { slackApi: { id: 'synthetic-secret-reference' } };
   candidate.nodes.find(n => n.name === 'Send Slack notification').webhookId = 'server-generated-slack-webhook';
+  candidate.nodes.find(n => n.name === 'Send Email notification').credentials = { smtp: { id: 'synthetic-smtp-reference' } };
+  candidate.nodes.find(n => n.name === 'Send Email notification').webhookId = 'server-generated-email-webhook';
   const output = sanitizeWorkflow(candidate, 'process');
-  assert.equal(output.nodes.length, 22);
+  assert.equal(output.nodes.length, 26);
   assert.equal(JSON.stringify(output).includes('synthetic-secret-reference'), false);
   assert.equal(JSON.stringify(output).includes('server-generated-slack-webhook'), false);
+  assert.equal(JSON.stringify(output).includes('synthetic-smtp-reference'), false);
+  assert.equal(JSON.stringify(output).includes('server-generated-email-webhook'), false);
 });
 
 test('A exhausted and B accepted both return to loop; done port has no transport edge', () => {
@@ -111,6 +125,10 @@ test('A exhausted and B accepted both return to loop; done port has no transport
   assert.deepEqual(children('Record invalid Slack diagnostic'), ['Process each notification']);
   assert.deepEqual(children('Process each notification', 0), ['Complete manual processing']);
   assert.deepEqual(children('Process each notification', 1), ['Route notification channel']);
+  assert.deepEqual(children('Send Email notification', 1), ['Record exhausted Email diagnostic']);
+  assert.deepEqual(children('Record exhausted Email diagnostic'), ['Process each notification']);
+  assert.deepEqual(children('Record Email result'), ['Process each notification']);
+  assert.deepEqual(children('Prepare safe Email text', 1), ['Record invalid Email diagnostic']);
 });
 
 test('exporter rejects bypass, unsafe retry, temporary input, SQL drift and pins', () => {
@@ -122,8 +140,51 @@ test('exporter rejects bypass, unsafe retry, temporary input, SQL drift and pins
     s => { s.pinData = { value: true }; },
     s => { s.nodes.find(n => n.name === 'Evaluate typed magnitude alerts').executeOnce = true; },
     s => { s.nodes.find(n => n.name === 'Fetch USGS all-hour feed').webhookId = 'unexpected-webhook'; },
+    s => { s.nodes.find(n => n.name === 'Use live USGS feed?').parameters.options = { unsafe: true }; },
+    s => { s.nodes.find(n => n.name === 'Send Email notification').parameters.toEmail = 'victim@example.test'; },
+    s => { s.nodes.find(n => n.name === 'Send Email notification').parameters.resource = 'other'; },
+    s => { s.nodes.find(n => n.name === 'Send Email notification').parameters.operation = 'sendAndWait'; },
+    s => { s.nodes.find(n => n.name === 'Send Email notification').parameters.options.ccEmail = 'other@example.test'; },
+    s => { s.nodes.find(n => n.name === 'Send Email notification').maxTries = 1; },
+    s => { s.nodes.find(n => n.name === 'Send Email notification').onError = 'continueRegularOutput'; },
+    s => { s.nodes.find(n => n.name === 'Prepare safe Email text').parameters.jsCode = 'return $input.all()'; },
   ]) {
     const s = snapshot(); change(s);
     assert.throws(() => sanitizeWorkflow(s, 'process'));
   }
+});
+
+test('exporter accepts only verified omitted editor defaults and cosmetic Switch key omission', () => {
+  const candidate = snapshot();
+  for (const current of candidate.nodes) {
+    if (current.type === 'n8n-nodes-base.code') { delete current.parameters.mode; delete current.parameters.language; }
+    if (current.type === 'n8n-nodes-base.set') { delete current.parameters.mode; delete current.parameters.includeOtherFields; current.parameters.options = {}; }
+    if (current.name === 'Fetch USGS all-hour feed') { delete current.parameters.method; delete current.parameters.authentication; }
+    if (current.name === 'Use live USGS feed?') { current.parameters.conditions.options.version = 1; current.parameters.options = {}; }
+    if (current.name === 'Route notification channel') {
+      delete current.parameters.mode;
+      for (const rule of current.parameters.rules.values) { delete rule.outputKey; rule.conditions.options.version = 1; }
+    }
+    if (current.name === 'Split canonical events') { delete current.parameters.include; current.parameters.options = {}; }
+    if (current.name === 'Deduplicate current feed') delete current.parameters.operation;
+    if (current.name === 'Deduplicate previous executions') delete current.parameters.logic;
+    if (current.name === 'Load owner alert configuration') delete current.parameters.resource;
+    if (current.name === 'Process each notification') delete current.parameters.batchSize;
+    if (current.name === 'Send Slack notification') {
+      for (const key of ['resource', 'operation', 'authentication', 'messageType']) delete current.parameters[key];
+    }
+    if (current.name === 'Send Email notification') {
+      delete current.parameters.resource;
+      delete current.parameters.operation;
+    }
+  }
+  assert.equal(sanitizeWorkflow(candidate, 'process').nodes.length, 26);
+  candidate.nodes.find(n => n.name === 'Send Email notification').parameters.emailFormat = 'html';
+  assert.throws(() => sanitizeWorkflow(candidate, 'process'));
+});
+
+test('checked-in process export is sanitized and matches the current graph, source and SQL guards', () => {
+  const exported = JSON.parse(read('../workflows/process.json'));
+  assert.deepEqual(sanitizeWorkflow(exported, 'process'), exported);
+  assert.equal(exported.nodes.length, 26);
 });

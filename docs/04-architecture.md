@@ -31,8 +31,10 @@ flowchart TD
   C --> L[One notification per iteration]
   L --> R{Channel}
   R --> SL[Slack with bounded native retries]
+  R --> EM[Email preparation and SMTP with bounded native retries]
   R --> SK[Unsupported channel diagnostic]
   SL --> O[Accepted or discarded diagnostic]
+  EM --> O
   O --> L
   SK --> L
 ```
@@ -47,17 +49,17 @@ Native Remove Duplicates first removes repeated source/ID pairs in a batch, then
 
 USGS may change preferred identifiers, so one physical earthquake can be processed again under another ID. Alias resolution, merging and correction/retraction handling are deliberately excluded. Repeated observations under a retained key normally do not rematch. New or edited alerts do not retroactively evaluate seen events.
 
-Only Slack sends in this milestone. Its native retry settings allow five total attempts, five seconds apart, for one notification item. After exhaustion an explicit error branch reports a discard and returns to the loop, allowing later notifications to proceed. Success similarly returns to the loop. This is best-effort transport: acknowledgement ambiguity can duplicate or lose a notification. Deduplication before configuration/transport means a downstream failure may lose a seen event's notifications permanently. No delivery queue, state machine, circuit, attempt history or recovery processor is added.
+Slack and Email use native retry settings of five total attempts, five seconds apart, for one notification item. Their success, invalid-preparation and exhausted-failure branches return to the loop, allowing later notifications to proceed. Email prepares bounded plain text from the matched owner's configured recipient, validates a single mailbox and optional HTTP(S) source link, and projects a safe acceptance/diagnostic result. SMTP credentials stay in n8n; PostgreSQL holds no SMTP secret or runtime delivery state. This is best-effort transport: acknowledgement ambiguity can duplicate or lose a notification. Deduplication before configuration/transport means a downstream failure may lose a seen event's notifications permanently. No delivery queue, state machine, circuit, attempt history or recovery processor is added.
 
-Email remains a required product feature and the next runtime milestone adds its transport to this same channel routing. Currently an email destination is visibly skipped and is never reported as delivered. Future channels can require a small configuration/UI change and dispatch branch, but no new runtime table, queue, worker or top-level processing architecture. Future sources primarily add fetch/normalization into the common pipeline.
+Email replaced the prior unsupported branch. The only upstream exception is projecting `a.name` and passing it as `alert_name` so the plain-text Email can name the alert; query selection, joins, matching, normalization, deduplication and ownership behavior are unchanged. One event can fan out to both profile destinations. Future channels can reasonably extend the same routing boundary, although a Teams destination needs a separate product-configuration decision because the current profile has explicit Email/Slack fields. No new runtime table, queue, worker or top-level processing architecture is implied. Future sources primarily add fetch/normalization into the common pipeline.
 
 ## Trigger, secrets and observability
 
-Manual execution is sufficient for milestone 5; no schedule is activated. Proposed future polling is every five minutes against the current one-hour USGS feed. No cursor/archive import exists. An unrestricted first run can match several recent events; controlled validation suppresses transport before the one authorized synthetic send.
+Manual execution remains sufficient after milestone 6; no schedule is activated. Proposed future polling is every five minutes against the current one-hour USGS feed. No cursor/archive import exists. An unrestricted first run can match several recent events; controlled validation suppresses transport before the one authorized synthetic SMTP4DEV send.
 
-Transport credentials stay in n8n. PostgreSQL contains non-secret destinations only. Intended n8n product permissions are SELECT on configuration tables, without DDL or ownership. Existing broad DEV credentials and unverified/no-TLS observations are documented exceptions, not production permission targets. Migrations resolve their separate external configuration and verify the actual target before applying.
+Transport credentials stay in n8n. PostgreSQL contains non-secret product configuration, including destinations. Intended n8n product permissions are SELECT on configuration tables, without DDL or ownership. Existing broad DEV credentials and unverified/no-TLS observations are documented exceptions, not production permission targets. Migrations resolve their separate external configuration and verify the actual target before applying.
 
-Keep application OpenTelemetry unchanged. Runtime investigation uses n8n execution IDs, node errors, source/external IDs and alert IDs. Do not mirror execution state into product tables or fake trace propagation through PostgreSQL. Global n8n OTEL configuration remains unverified and unchanged. Avoid credential values, raw provider bodies and destination data in diagnostic projections.
+Keep application OpenTelemetry unchanged. Runtime investigation uses n8n execution IDs, node errors, source/external IDs and alert IDs. Do not mirror execution state into product tables or fake trace propagation through PostgreSQL. Global n8n OTEL configuration remains unverified and unchanged. Avoid credential values, raw provider bodies, raw SMTP errors and destination data in diagnostic projections. SMTP4DEV capture proves SMTP submission and capture, not external inbox delivery.
 
 ## Migration and history
 

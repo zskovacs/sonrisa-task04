@@ -52,13 +52,23 @@ const invalid = node({ type: 'n8n-nodes-base.set', version: 3.5, config: { name:
   { id: 'invalid-external-id', name: 'external_id', value: expr("{{ $('Process each notification').item.json.event.external_id }}"), type: 'string' },
   { id: 'invalid-alert-id', name: 'alert_id', value: expr("{{ $('Process each notification').item.json.alert_id }}"), type: 'string' }
 ] } } }, output: [{ channel: 'diagnostic', code: 'invalid_slack_notification_discarded' }] });
-const email = node({ type: 'n8n-nodes-base.set', version: 3.5, config: { name: 'Record unsupported email diagnostic', parameters: { mode: 'manual', includeOtherFields: false, assignments: { assignments: [
-  { id: 'email-channel', name: 'channel', value: 'diagnostic', type: 'string' },
-  { id: 'email-code', name: 'code', value: 'email_transport_not_implemented', type: 'string' },
-  { id: 'email-source', name: 'source', value: expr('{{ $json.event.source }}'), type: 'string' },
-  { id: 'email-external-id', name: 'external_id', value: expr('{{ $json.event.external_id }}'), type: 'string' },
-  { id: 'email-alert-id', name: 'alert_id', value: expr('{{ $json.alert_id }}'), type: 'string' }
-] } } }, output: [{ channel: 'diagnostic', code: 'email_transport_not_implemented' }] });
+const emailMessage = node({ type: 'n8n-nodes-base.code', version: 2, config: { name: 'Prepare safe Email text', onError: 'continueErrorOutput', parameters: { mode: 'runOnceForAllItems', language: 'javaScript', jsCode: __CODE_PREPARE_EMAIL_MESSAGE__ } }, output: [{ destination: 'owner@example.test', subject: 'Sonrisa alert: Earthquake', text: 'Earthquake' }] });
+const emailSend = node({ type: 'n8n-nodes-base.emailSend', version: 2.1, config: { name: 'Send Email notification', retryOnFail: true, maxTries: 5, waitBetweenTries: 5000, onError: 'continueErrorOutput', parameters: { resource: 'email', operation: 'send', fromEmail: 'sonrisa@example.test', toEmail: expr('{{ $json.destination }}'), subject: expr('{{ $json.subject }}'), emailFormat: 'text', text: expr('{{ $json.text }}'), options: { appendAttribution: false } } }, output: [{ accepted: ['owner@example.test'], rejected: [] }] });
+const emailResult = node({ type: 'n8n-nodes-base.code', version: 2, config: { name: 'Record Email result', parameters: { mode: 'runOnceForAllItems', language: 'javaScript', jsCode: __CODE_RECORD_EMAIL_RESULT__ } }, output: [{ channel: 'diagnostic', code: 'email_accepted' }] });
+const invalidEmail = node({ type: 'n8n-nodes-base.set', version: 3.5, config: { name: 'Record invalid Email diagnostic', parameters: { mode: 'manual', includeOtherFields: false, assignments: { assignments: [
+  { id: 'invalid-email-channel', name: 'channel', value: 'diagnostic', type: 'string' },
+  { id: 'invalid-email-code', name: 'code', value: 'invalid_email_notification_discarded', type: 'string' },
+  { id: 'invalid-email-source', name: 'source', value: expr("{{ $('Process each notification').item.json.event.source }}"), type: 'string' },
+  { id: 'invalid-email-external-id', name: 'external_id', value: expr("{{ $('Process each notification').item.json.event.external_id }}"), type: 'string' },
+  { id: 'invalid-email-alert-id', name: 'alert_id', value: expr("{{ $('Process each notification').item.json.alert_id }}"), type: 'string' }
+] } } }, output: [{ channel: 'diagnostic', code: 'invalid_email_notification_discarded' }] });
+const exhaustedEmail = node({ type: 'n8n-nodes-base.set', version: 3.5, config: { name: 'Record exhausted Email diagnostic', parameters: { mode: 'manual', includeOtherFields: false, assignments: { assignments: [
+  { id: 'exhausted-email-channel', name: 'channel', value: 'diagnostic', type: 'string' },
+  { id: 'exhausted-email-code', name: 'code', value: 'email_retries_exhausted_discarded', type: 'string' },
+  { id: 'exhausted-email-source', name: 'source', value: expr("{{ $('Process each notification').item.json.event.source }}"), type: 'string' },
+  { id: 'exhausted-email-external-id', name: 'external_id', value: expr("{{ $('Process each notification').item.json.event.external_id }}"), type: 'string' },
+  { id: 'exhausted-email-alert-id', name: 'alert_id', value: expr("{{ $('Process each notification').item.json.alert_id }}"), type: 'string' }
+] } } }, output: [{ channel: 'diagnostic', code: 'email_retries_exhausted_discarded' }] });
 const unsupported = node({ type: 'n8n-nodes-base.set', version: 3.5, config: { name: 'Record unsupported channel diagnostic', parameters: { mode: 'manual', includeOtherFields: false, assignments: { assignments: [
   { id: 'unsupported-channel', name: 'channel', value: 'diagnostic', type: 'string' },
   { id: 'unsupported-code', name: 'code', value: expr("{{ $json.code ?? 'unsupported_channel' }}"), type: 'string' },
@@ -76,7 +86,9 @@ export default workflow('sonrisa-process-alerts-dev', 'Sonrisa - Process Alerts 
   .add(normalize).to(splitEvents).to(withinInput).to(previousRuns).to(configs).to(evaluate)
   .to(loop.onDone(complete).onEachBatch(route
     .onCase(0, message.to(send.to(accepted.to(nextBatch(loop)))))
-    .onCase(1, email.to(nextBatch(loop)))
+    .onCase(1, emailMessage.to(emailSend.to(emailResult.to(nextBatch(loop)))))
     .onCase(2, unsupported.to(nextBatch(loop)))))
   .add(message.onError(invalid.to(nextBatch(loop))))
-  .add(send.onError(discarded.to(nextBatch(loop))));
+  .add(send.onError(discarded.to(nextBatch(loop))))
+  .add(emailMessage.onError(invalidEmail.to(nextBatch(loop))))
+  .add(emailSend.onError(exhaustedEmail.to(nextBatch(loop))));
