@@ -1,5 +1,8 @@
 # SMTP delivery extension
 
+> Historical implementation plan/design: runtime boundaries are superseded by the approved [runtime simplification](../specs/2026-09-14-runtime-simplification-design.md). Preserve this record with its original implementation and validation context.
+
+
 Approved in conversation on 2026-09-14 after the user requested SMTP4DEV email and corrected the initial separate-workflow proposal: extend the existing delivery workflow with another channel. This is a bounded extension after milestone 5 (`b9cf171`), not completion of milestone 6's retry/circuit scope. [User request](../../../prompts/024-add-smtp-email-delivery.md).
 
 ## Behavior

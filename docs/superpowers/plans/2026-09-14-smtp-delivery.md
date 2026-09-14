@@ -1,5 +1,8 @@
 # SMTP Delivery Implementation Plan
 
+> Historical implementation plan/design: runtime boundaries are superseded by the approved [runtime simplification](../specs/2026-09-14-runtime-simplification-design.md). Preserve this record with its original implementation and validation context.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development. Execute bounded tasks and review each before continuing.
 
 **Goal:** Add SMTP4DEV email to the existing manually selected delivery workflow.

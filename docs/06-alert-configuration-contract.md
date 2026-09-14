@@ -29,15 +29,15 @@ WHERE a.enabled AND a.event_type = $1
 ORDER BY a.id;
 ```
 
-This returns one row per alert with one or both shared destinations. It is a documented contract, not an implemented workflow/evaluator. The future delivery-intent operation expands nonnull destinations into the selected channel intents. The application reads only its current owner's records; a future product evaluator may intentionally read enabled alerts across owners using its separately scoped credential.
+This returns one row per alert with one or both shared destinations. Under ADR-012, n8n reads enabled configuration across owners and expands destinations into transient channel items, without delivery intents. The application still reads only its current owner's records.
 
-One PostgreSQL statement sees one consistent committed snapshot. Do not combine unrelated configuration reads across n8n nodes and assume they share a snapshot. [ADR-011](adr/ADR-011-use-n8n-evaluation-and-replay-safe-runtime-writes.md) replaces the earlier atomic SQL matcher. n8n evaluates this joined snapshot and separately persists idempotent intents before completing the event. Replays may read changed configuration; existing intent destinations remain unchanged. Sharing durable PostgreSQL state does not propagate a synchronous trace context between application and n8n.
+One PostgreSQL statement sees one consistent committed configuration snapshot. [ADR-012](adr/ADR-012-use-n8n-native-runtime-state.md) supersedes durable runtime writes: n8n evaluates this joined snapshot and dispatches directly using native technical state. No event or delivery state is written back. PostgreSQL does not propagate synchronous trace context between the application and n8n.
 
 ## Writes, concurrency and lifecycle
 
 The notification-settings page gets/creates/updates only the current owner's profile. Creating an alert requires that profile. Both profile and alert writes use one SaveChanges boundary and compare their own submitted revision token against the original value, assigning a fresh UUID on success. Stale writes conflict. Concurrent first profile saves must also produce a safe conflict rather than overwrite settings or expose a unique-key exception.
 
-Changing user destinations affects later evaluation of all that user's alerts. It must not rewrite previously committed delivery-intent destination/content snapshots. Disable affects future eligibility, not already committed intent. No public alert/user delete, runtime event/delivery table, ingestion, evaluator or send exists in this milestone.
+Changing user destinations affects subsequent configuration reads for that user's alerts. Disable affects future evaluation; it does not retract an in-flight notification. Seen events are not rematched after edits. There is no public alert/user hard-delete operation or product runtime event/delivery table.
 
 The owner index supports management listing; a partial event-type index supports enabled-alert reads. User lookup uses its UUID primary key; no email/Slack index or uniqueness rule is needed. Connectivity readiness does not prove migration/schema compatibility.
 

@@ -1,5 +1,7 @@
 # ADR-006: Use existing shared DEV infrastructure
 
+> Runtime boundary amendment (2026-09-14): [ADR-012](ADR-012-use-n8n-native-runtime-state.md) supersedes the runtime persistence, queue, recovery and delivery-guarantee provisions described below. Unrelated decisions remain in force; this text preserves the historical design.
+
 ## Status
 
 **Accepted.** Recorded on 2026-09-14 during preparation for milestone 3. The user approved this narrowly scoped amendment during the design clarification, after [the skeleton request](../../prompts/010-create-application-skeleton.md) exposed a conflict with the earlier local-service assumptions. This is a refinement caused by implementation-environment discovery, not a product redesign or evidence of working connectivity.

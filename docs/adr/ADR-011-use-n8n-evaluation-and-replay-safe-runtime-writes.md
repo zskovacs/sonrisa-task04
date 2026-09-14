@@ -1,5 +1,7 @@
 # ADR-011: Evaluate in n8n and use replay-safe runtime writes
 
+> Runtime boundary amendment (2026-09-14): [ADR-012](ADR-012-use-n8n-native-runtime-state.md) supersedes the runtime persistence, queue, recovery and delivery-guarantee provisions described below. Unrelated decisions remain in force; this text preserves the historical design.
+
 ## Status
 
 Accepted on 2026-09-14 through the user's explicit [milestone-5 simplification](../../prompts/022-simplify-first-runtime-workflow-design.md). This supersedes ADR-005's one-operation SQL matching/intent/completion requirement and the associated event-wide configuration snapshot assumption. ADR-005's direct database integration and n8n runtime ownership remain. Implementation and validation are recorded separately.

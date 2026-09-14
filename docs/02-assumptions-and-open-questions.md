@@ -1,61 +1,46 @@
 # Assumptions and open questions
 
-Architecture register, recorded on 2026-09-14 and amended during milestone 3 preparation for the confirmed shared DEV environment. Distinguish user-confirmed constraints, engineering decisions, and unvalidated planning assumptions. The original brief remains unchanged. Links below identify decisions made during the actual discussion, including superseded ownership proposals.
+Current decisions follow [ADR-012](adr/ADR-012-use-n8n-native-runtime-state.md), the user's approved runtime correction. Earlier approvals are preserved in the [decision log](decision-log.md) and historical ADRs; the current register no longer treats durable recovery as a product requirement.
 
-## Confirmed constraints and current decisions
+## Confirmed constraints
 
-- Email, Slack, configurable alerts, extensibility, and admin visibility come from the [product brief](00-product-brief.md).
-- D-001 originally confirmed one trusted operator and pre-created user/admin roles. [ADR-008](adr/ADR-008-use-single-configured-mvp-owner.md) now supersedes the role/selector assumption with one configured owner and owner-scoped management, without authentication. [ADR-006](adr/ADR-006-use-existing-shared-dev-infrastructure.md) supersedes its strictly local service-deployment assumption: the management application remains local, while PostgreSQL and n8n use existing shared DEV infrastructure. Authentication and authorization infrastructure are deliberately outside the requested MVP.
-- Earthquakes are the first slice. The user explicitly clarified that RSS in the workflow example did not change that choice.
-- The user accepted a common event envelope, validated type-specific data, and a supported typed field/operator condition after challenging source-specific hardcoding ([ADR-002](adr/ADR-002-canonical-events-and-typed-alert-conditions.md)).
-- Razor Pages, product PostgreSQL persistence, EF Core schema/migration ownership, and connection strings outside Git remain accepted under [ADR-003](adr/ADR-003-server-rendered-application-and-isolated-persistence.md). ADR-006 replaces the requirement to create/manage two databases: only the product database is in application scope; hosted n8n owns its internal persistence outside this repository.
-- The user requires automatic retries of uncertain external email/Slack sends and a circuit breaker, accepting possible duplicate external messages (D-002). The five-send example is a priority statement, not an attempt limit.
-- The user's later clarification and workflow sequence assign all event processing and delivery control to n8n with direct product-database access. The application manages conditions and the UI. No n8n/application HTTP layer or application-owned breaker exists in the current design ([ADR-005](adr/ADR-005-direct-database-integration-and-workflow-owned-delivery.md)).
+- The original brief requires configurable alerts, Slack, email, extensibility and an admin view. No reliability SLA, permanent event ledger, delivery audit, guaranteed delivery or recovery after outages is required.
+- Earthquakes remain the first source type; public USGS all-hour GeoJSON is selected. RSS and market data are extension examples, not current integrations.
+- One supported typed condition: earthquake/magnitude/gte/number with a finite numeric threshold. No multiple conditions, AND/OR, arbitrary scripts or rules DSL.
+- Single-user management uses one configured/default owner, owner-scoped reads/writes and no authentication (ADR-008). Runtime reads enabled configuration across owners.
+- The actual PostgreSQL configuration model has alerts with inline conditions and users with shared email/Slack destinations (ADR-010). Preserve revision/atomicity validation and FluentValidation.
+- ASP.NET Core/Razor Pages is the local management plane; shared DEV PostgreSQL and hosted n8n remain externally operated. EF owns product migrations; n8n reads configuration directly. There is no application runtime API.
+- n8n owns normalization, native technical deduplication, evaluation, channel dispatch, bounded retry and execution visibility. Product runtime tables/queues/recovery are rejected.
+- Slack uses five total attempts per notification; exhaustion discards that item and continues subsequent notifications. Ambiguous duplicates/loss and dedup-before-delivery loss are accepted.
+- Email is required next, through this same runtime's channel branch. The existing historical SMTP implementation does not make email active in the replacement milestone-5 workflow.
 
-See [the decision log](decision-log.md) for chronology. Earlier ADRs remain historical where ADR-005 supersedes them.
+## Engineering assumptions and limits
 
-## Explicit engineering assumptions
+| Area | Current decision or assumption |
+| --- | --- |
+| Initial window | Process the bounded current one-hour feed; no cursor/archive import or completeness/latency guarantee. Manual tests suppress transport until the one authorized send. |
+| Schedule | Inactive/manual for milestone 5. Five-minute polling is proposed only for later reviewed activation. |
+| Canonical event | Versioned workflow-only envelope plus finite magnitude; reject malformed required data, omit invalid optional URL. No product persistence is needed. |
+| Identity | Same retained source/external-ID key is normally filtered. Provider preferred IDs can change; aliases, cross-provider merging, corrections and retractions remain deliberately unimplemented. |
+| Dedup history | n8n node-scoped history size 10,000. Installed 2.38.7 checks stored count plus incoming batch before filtering and may throw at the cap; no rolling/permanent/atomic guarantee. History loss/reset or identity recreation can permit repeats. |
+| Rule sampling | Sample current enabled configuration when each new event reaches the query. No historical rematching after an alert is created or edited. |
+| Delivery | Best-effort five-attempt native retry per notification; explicit error output continues the loop. A seen event's notification may be lost after DB/transport failure; no next-day recovery or backlog drain. |
+| Unsupported channels | Email and unknown channels are visible skips, never delivered. Invalid destinations are handled independently so a bad channel cannot suppress another valid channel. |
+| Visibility | Use n8n executions/errors and source/external/alert IDs. No new product history tables or global n8n OTEL requirement. |
+| Data removal | Applied runtime state is removed by a reviewed forward migration; original migrations and historical evidence remain. An optional restricted backup stays outside Git. |
 
-| ID | Assumption/design default | Rationale, effect, and validation |
-| --- | --- | --- |
-| A-01 | One real earthquake provider/type; a second type is a stretch goal. | Prove the full path first. Validate the provider's canonical mapping and demonstrate the extension boundary without building unused types. |
-| A-02 | First valid accepted snapshot per source/external ID is immutable. | Keeps the new-event flow small. Provider corrections/retractions, including a later threshold crossing, can be missed. Review this limitation before expanding beyond the demo. |
-| A-03 | Rules are sampled in each joined n8n evaluation read; completed events are not rematched after edits. | ADR-011 uses replay-safe separate writes. Each read is consistent; retries can accumulate intents from changed snapshots. Test partial completion and preserve existing destination snapshots. |
-| A-04 | Process the provider's bounded feed window on initial polling; no additional history import. | A first poll may include earlier occurrences. Confirm the chosen feed window and describe it in the demo; no completeness or latency SLA is assumed. |
-| A-05 | One Slack workspace/profile and one email sender/profile; live tests use explicitly authorized isolated destinations. | Fits one trusted operator and reduces onboarding. Confirm actual authorized accounts/destinations before live sends; do not assume credentials exist. |
-| A-06 | One shared email and/or Slack destination per user under ADR-010; all that user’s alerts use those targets. One intent per event/alert/channel. | Provides a clear deduplication identity and avoids multi-recipient fan-out in this MVP. Test configuration validation and intent uniqueness. |
-| A-07 | Superseded by ADR-008: one configured/default owner, stable persisted ownership, and owner-scoped management. | The previous demo identity/role selector is rejected. No authentication or authorization infrastructure is part of this MVP; the resolver is not a security boundary. Test foreign-owner reads/writes and form tampering. |
-| A-08 | Three recoverable responsibilities: ingest, evaluate Pending events, deliver a selected intent. All remain inactive in milestone 5. | Source failure or lack of new events must not strand durable work. Exercise interrupted evaluation and independent manual recovery; delivery ambiguity is not automatically retried until milestone 6. |
-| A-09 | Workflow-owned event, delivery/attempt, and circuit state lives in the product database; EF migrations own schema. | Supports admin reads and durable cross-execution coordination without application runtime ownership or custom n8n internal tables. Test permissions and migration/query compatibility. |
-| A-10 | Configurable demo timing defaults from the architecture: small failure threshold/cooldown, one probe, bounded send/lease, capped retry delay. | These are engineering defaults, not measured capacity or user SLAs. Verify actual node timeouts/retries and controlled-time state transitions before acceptance. |
-| A-11 | No automatic product-state deletion or pending-notification expiry during the demo. | Preserves deduplication keys and pending intent across replay/outages. An explicit isolated reset is allowed; long-running retention and stale-message expiry need a later product decision. |
-| A-12 | Milestone 6 will add transient/uncertain retries through backoff/circuits; milestone 5 leaves ambiguous processing unresolved and never automatically retries. | Matches the user's preference to avoid loss. It cannot guarantee provider recovery, valid recipients, inbox placement, or human receipt. Test unknown outcomes and visible permanent failures. |
+## Remaining questions
 
-## Question register
+| Area | Remaining question / revisit point |
+| --- | --- |
+| Required email transport | Next runtime milestone: integrate the SMTP/email branch into the same flow, validate authorized recipient/provider and native retry semantics. Existing SMTP4DEV evidence is historical; production inbox placement is unproven. |
+| Admin purpose | Define the smallest product admin view independently of the rejected event/delivery ledger. Technical debugging remains in n8n. |
+| Unattended activation | Review history capacity behavior, authorized destinations, source frequency, timeouts and shared DEV load before activating the future five-minute schedule. No automatic history reset is currently approved. |
+| Scale | No numeric production event/user/latency target exists. Do not infer one or add concurrency infrastructure speculatively. |
+| Production security | Distinct least-privilege application, migration and n8n roles and secure transport remain required before production. Existing broad DEV access/no-TLS observations are documented under ADR-007 and runtime evidence, not desired production settings. |
+| Authentication | Deferred intentionally; replace the owner resolver with authenticated identity only under a later requirement. |
+| Telemetry | Application OpenTelemetry remains implemented; global hosted n8n OTEL is unverified and unchanged. |
+| Retention | Configuration lifecycle and n8n execution/dedup retention are separate. No automatic product-runtime cleanup exists because there is no product runtime store. |
+| Time budget | No numeric delivery date or production-readiness target is supplied. Do not turn MVP validation into a production guarantee. |
 
-| ID | Area | Current answer / remaining question | Resolve or revisit before |
-| --- | --- | --- | --- |
-| Q-01 | Importance | Enabled user-defined conditions determine relevance. No global score or runtime LLM. | New importance semantics require explicit product examples. |
-| Q-02 | Alert definition | One supported field/operator/value condition; list/create/edit/enable/disable; one or both channels. | Detailed form/input bounds before management implementation. |
-| Q-03 | Event/source type | Earthquakes confirmed. News/markets are extension examples, not additional MVP integrations. | Revisit after full-slice acceptance. |
-| Q-04 | External source | USGS public v1.0 all-hour GeoJSON selected under ADR-011; finite magnitude, UTC epoch time and preferred event ID map into the canonical envelope. | Source workflow milestone. |
-| Q-05 | Ingestion mode | Manual execution for milestone 5; proposed future five-minute polling of the one-hour feed. No cursor or automatic activation. | Source adapter implementation. |
-| Q-06 | Canonical event | Common versioned envelope and validated earthquake data; required concepts are in the architecture. Exact size bounds/serialization mapping need the implementation contract. | Canonical ingestion milestone. |
-| Q-07 | Matching | Magnitude greater than or equal to threshold; supported typed condition; missing/invalid magnitude rejected. Rule sampling follows A-03. | Matching query and tests. |
-| Q-08 | Duplicate/update handling | Unique source/external ID and A-02 first-snapshot semantics. USGS preferred IDs may change: alias-aware physical-earthquake identity is explicitly deferred along with cross-provider merging and correction/retraction processing. | Revisit before supporting revised reports. |
-| Q-09 | Notification idempotency | Unique event/alert/channel intent; idempotent DB operations and attempt outcomes; external duplicates accepted for uncertain sends. | Claim/outcome query and workflow tests. |
-| Q-10 | Failure/circuit behavior | n8n owns persistent circuit/retry logic; defaults and neutral/unknown outcomes are defined in the architecture. Provider-specific errors/timeouts must be checked. | Delivery integration milestone. |
-| Q-11 | Ownership | One configured/default owner under ADR-008; all application alert reads/writes are scoped to that owner. A minimal users row stores shared destinations under ADR-010; it is product configuration, not an authentication record. | UUID ownership and ICurrentOwner are defined in the approved milestone 4 design; revisit authenticated-subject mapping before multi-user access. |
-| Q-12 | Access | No authentication or authorization infrastructure in the MVP, because it was not requested. No demo identity switching. Local owner resolution is not production authentication. Separate database-access requirements remain. | Any public or independent multi-user access. |
-| Q-13 | Admin | Read-only events, processing, deliveries/attempts, errors, retry/circuit visibility. Recovery/debugging belongs in n8n. | Operational UI and workflow recovery runbook. |
-| Q-14 | Scale/throughput | No numeric production user/event/latency target exists. Profile serialization is a local simplification, not a capacity claim. | Capacity-sensitive expansion; check demo backlog/fairness during validation. |
-| Q-15 | Retention | Product data retained until explicit demo reset. n8n execution retention is separate; production lifecycle and notification expiry remain open. | Long-running or production operation. |
-| Q-16 | UI | Razor Pages selected over native JS/TypeScript and Angular for current forms/lists. | Revisit if interaction complexity changes. |
-| Q-17 | Slack | One configured workspace/profile; shared user destinations stored in PostgreSQL. Actual workspace, credential scope, and permissions remain open. | Authorized Slack setup and tests. |
-| Q-18 | Email | The SMTP-only extension uses the existing n8n SMTP account and user-supplied SMTP4DEV, one non-secret sender profile and reserved test mailboxes. User destinations remain in PostgreSQL. Runtime accepts one conservative bare-mailbox subset; uncertain SMTP results are not automatically retried. Production provider/setup and full retry/error policy remain open. | Authorized email setup and tests. |
-| Q-19 | Persistence/runtime | Local ASP.NET Core, EF Core product migrations, existing shared DEV PostgreSQL, and hosted n8n direct product access with separate credentials. The skeleton selects .NET/EF Core 10 and Npgsql EF provider 10.0.3. Host and container application readiness have passed. The supplied role was observed to be a superuser, and a host-side session audit reported no PostgreSQL TLS; the user accepted these current application DEV limitations under [ADR-007](adr/ADR-007-accept-current-dev-database-access.md). Restricted runtime access and verified secure transport remain required before production use. Concrete product privilege/query contracts belong to the schema/workflow milestone; see the skeleton validation record. Hosted n8n internal persistence is out of scope. | Executable skeleton and relevant schema/workflow milestones. |
-| Q-20 | Time budget | Time-constrained, but no numeric duration or production readiness target was supplied. MVP is one complete local slice with both channels and failure validation. | Committing to a dated schedule or expanding scope. |
-
-## Updating this register
-
-Record real answers and corrections when they occur. Update an assumption when evidence or user direction changes it; retain why it existed and link architectural changes through ADRs. Do not manufacture agreement, scale estimates, test outcomes, or business requirements.
+Record future decisions when made, distinguishing observations from assumptions and preserving superseded reasoning.

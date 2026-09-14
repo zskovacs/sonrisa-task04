@@ -1,5 +1,7 @@
 # ADR-002: Separate source adapters from canonical events and typed alert conditions
 
+> Runtime boundary amendment (2026-09-14): [ADR-012](ADR-012-use-n8n-native-runtime-state.md) supersedes the runtime persistence, queue, recovery and delivery-guarantee provisions described below. Unrelated decisions remain in force; this text preserves the historical design.
+
 ## Status
 
 **Accepted design direction.** Recorded on 2026-09-14 during milestone 2. The user accepted this extension boundary after challenging whether the proposed earthquake slice would hardcode source-specific business logic. No application or workflow has been implemented. Exact integration contracts and persistence representation remain subsequent design work within this milestone.

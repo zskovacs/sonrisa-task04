@@ -1,5 +1,7 @@
 # ADR-010: Store shared user notification destinations in PostgreSQL
 
+> Runtime boundary amendment (2026-09-14): [ADR-012](ADR-012-use-n8n-native-runtime-state.md) supersedes the runtime persistence, queue, recovery and delivery-guarantee provisions described below. Unrelated decisions remain in force; this text preserves the historical design.
+
 ## Status
 
 Accepted on 2026-09-14 after the user rejected application-configuration destination allowlists and explicitly selected shared destinations per user. This supersedes the operator-provisioned destination assumption in ADR-005 and the initial milestone 4 specification. Authentication remains deferred under ADR-008.

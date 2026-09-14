@@ -14,6 +14,7 @@ This directory contains only substantive user-authored task requests. It is not 
 | [022](022-simplify-first-runtime-workflow-design.md) | Simplify and approve the first runtime design, keeping matching in n8n and delivery explicitly selected. |
 | [023](023-create-sonrisa-slack-app.md) | Create the Sonrisa DEV Slack app, configure its scopes, and configure the n8n credential where possible. |
 | [024](024-add-smtp-email-delivery.md) | Add SMTP email delivery alongside the existing notification workflow using SMTP4DEV. |
+| [025](025-simplify-n8n-runtime-architecture.md) | Reconstruct and simplify runtime to one n8n pipeline with native deduplication and bounded retries; remove product database runtime state after approval. |
 
 Record meaningful user requests that start a milestone or assign implementation/product-validation work. Exclude agent-generated plans, delegated assignments, internal review prompts and loops, brainstorming answers, clarifications, approvals, status replies, and routine housekeeping. Honor explicit requests not to record a message.
 

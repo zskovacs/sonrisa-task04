@@ -1,5 +1,7 @@
 # ADR-005: Use direct database integration and workflow-owned delivery control
 
+> Runtime boundary amendment (2026-09-14): [ADR-012](ADR-012-use-n8n-native-runtime-state.md) supersedes the runtime persistence, queue, recovery and delivery-guarantee provisions described below. Unrelated decisions remain in force; this text preserves the historical design.
+
 ## Status
 
 **Milestone-5 amendment:** [ADR-011](ADR-011-use-n8n-evaluation-and-replay-safe-runtime-writes.md) supersedes this document's atomic SQL evaluator and event-wide snapshot requirements. The user now requires deterministic evaluation in n8n and separate idempotent persistence/completion steps. Direct product-database integration, n8n behavioral ownership and EF schema ownership remain accepted. Read the atomic-evaluation passages below as historical.

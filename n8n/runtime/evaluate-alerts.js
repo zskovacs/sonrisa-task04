@@ -1,37 +1,42 @@
-const input = $input.first().json;
-const event = input.event;
-if (!event || typeof event.id !== 'string' || !Array.isArray(input.alerts)) throw new Error('invalid_evaluation_envelope');
-const intents = [];
-const diagnostics = [];
-const magnitude = event.data && event.data.magnitude;
-if (event.event_type !== 'earthquake' || typeof magnitude !== 'number' || !Number.isFinite(magnitude)) {
-  diagnostics.push({ code: 'invalid_event_magnitude' });
-  return [{ json: { event_id: event.id, intents, diagnostics } }];
+const output = [];
+const safeEvent = event => ({
+  source: typeof event?.source === 'string' && /^(?:usgs|demo\.usgs)$/.test(event.source) ? event.source : undefined,
+  external_id: typeof event?.external_id === 'string' && /^[!-~]{1,128}$/.test(event.external_id) ? event.external_id : undefined,
+});
+const diagnostic = (code, event, alertId) => ({ json: { channel: 'diagnostic', code, ...safeEvent(event), ...(alertId ? { alert_id: alertId } : {}) } });
+const validAlertId = id => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) && !/^0{8}-0{4}-0{4}-0{4}-0{12}$/i.test(id);
+const validEmail = value => typeof value === 'string' && value.length <= 254 && /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/.test(value) && !value.includes('..');
+for (const item of $input.all()) {
+  const { event, alerts } = item.json ?? {};
+  const magnitude = event?.data?.magnitude;
+  if (event?.contract_version !== 1 || typeof event?.source !== 'string' || !/^(?:usgs|demo\.usgs)$/.test(event.source) || typeof event?.external_id !== 'string' || !/^[!-~]{1,128}$/.test(event.external_id) || event?.event_type !== 'earthquake' || typeof magnitude !== 'number' || !Number.isFinite(magnitude) || !Array.isArray(alerts)) {
+    output.push(diagnostic('invalid_event_or_envelope', event));
+    continue;
+  }
+  for (const alert of alerts) {
+    if (!alert || alert.enabled !== true) continue;
+    if (!validAlertId(alert.id)) { output.push(diagnostic('invalid_alert_id', event)); continue; }
+    const id = alert.id;
+    if (alert.event_type !== 'earthquake' || alert.condition_field !== 'magnitude' || alert.condition_operator !== 'gte' || alert.condition_value_type !== 'number') {
+      output.push(diagnostic('unsupported_condition', event, id));
+      continue;
+    }
+    if (typeof alert.condition_value !== 'number' || !Number.isFinite(alert.condition_value)) {
+      output.push(diagnostic('invalid_threshold', event, id));
+      continue;
+    }
+    if (magnitude < alert.condition_value) continue;
+    const notification = (channel, destination) => ({ json: { event, alert_id: id, channel, destination } });
+    const slack = alert.slack_destination;
+    if (slack !== null && slack !== undefined) {
+      if (typeof slack !== 'string' || !/^[A-Z0-9]{2,80}$/.test(slack)) output.push(diagnostic('invalid_slack_destination', event, id));
+      else output.push(notification('slack', slack));
+    }
+    const email = alert.email_destination;
+    if (email !== null && email !== undefined) {
+      if (!validEmail(email)) output.push(diagnostic('invalid_email_destination', event, id));
+      else output.push(notification('email', email));
+    }
+  }
 }
-for (const alert of input.alerts) {
-  if (!alert || alert.enabled !== true) continue;
-  const id = typeof alert.id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(alert.id) && !/^0{8}-0{4}-0{4}-0{4}-0{12}$/i.test(alert.id) ? alert.id : null;
-  if (!id) { diagnostics.push({ code: 'invalid_alert_id' }); continue; }
-  if (alert.event_type !== 'earthquake' || alert.condition_field !== 'magnitude' || alert.condition_operator !== 'gte' || alert.condition_value_type !== 'number') {
-    diagnostics.push({ code: 'unsupported_condition', alert_id: id });
-    continue;
-  }
-  if (typeof alert.condition_value !== 'number' || !Number.isFinite(alert.condition_value)) {
-    diagnostics.push({ code: 'invalid_threshold', alert_id: id });
-    continue;
-  }
-  if (magnitude < alert.condition_value) continue;
-  const slack = alert.slack_destination;
-  const email = alert.email_destination;
-  if (slack !== null && slack !== undefined && (typeof slack !== 'string' || !/^[A-Z0-9]{2,80}$/.test(slack))) {
-    diagnostics.push({ code: 'invalid_slack_destination', alert_id: id });
-    continue;
-  }
-  if (email !== null && email !== undefined && (typeof email !== 'string' || email.length > 254 || !/^[^\s\x00-\x1f\x7f@]+@[^\s\x00-\x1f\x7f@]+$/.test(email))) {
-    diagnostics.push({ code: 'invalid_email_destination', alert_id: id });
-    continue;
-  }
-  if (slack) intents.push({ alert_id: id, channel: 'slack', destination: slack, status: 'pending', last_error: null });
-  if (email) intents.push({ alert_id: id, channel: 'email', destination: email, status: 'pending', last_error: null });
-}
-return [{ json: { event_id: event.id, intents, diagnostics } }];
+return output;

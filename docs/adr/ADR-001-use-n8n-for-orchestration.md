@@ -1,5 +1,7 @@
 # ADR-001: Use n8n for orchestration
 
+> Runtime boundary amendment (2026-09-14): [ADR-012](ADR-012-use-n8n-native-runtime-state.md) supersedes the runtime persistence, queue, recovery and delivery-guarantee provisions described below. Unrelated decisions remain in force; this text preserves the historical design.
+
 ## Status
 
 **Accepted.** Recorded on 2026-09-14 from the supplied architectural direction. This records a decision already made, not an implementation outcome. No orchestration prototype, workflow, or comparative benchmark has been produced in this repository.

@@ -1,5 +1,8 @@
 # First n8n runtime slice design
 
+> Historical implementation plan/design: runtime boundaries are superseded by the approved [runtime simplification](../specs/2026-09-14-runtime-simplification-design.md). Preserve this record with its original implementation and validation context.
+
+
 Approved on 2026-09-14 through [the user's simplifying correction](../../../prompts/022-simplify-first-runtime-workflow-design.md), which supersedes the more complex pre-approval proposal. No further generic design gate is required. Implementation acceptance remains separate.
 
 ## Scope and architecture correction

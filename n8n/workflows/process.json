@@ -1,0 +1,918 @@
+{
+  "name": "Sonrisa - Process Alerts - DEV",
+  "description": "Manual USGS-to-Slack alerts from persisted owner configuration. Native bounded deduplication and per-notification retry with continuation; best-effort delivery, email deferred to the required next channel milestone. Keep inactive.",
+  "active": false,
+  "nodes": [
+    {
+      "id": "5cfb85a5-62df-4a5a-a9aa-032447d95a57",
+      "name": "Manual alert processing",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        768
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "31f9e689-4143-45a9-9a24-357b7fa40eee",
+      "name": "Operator feed input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        224,
+        768
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "mode",
+              "name": "mode",
+              "value": "live",
+              "type": "string"
+            },
+            {
+              "id": "fixture-json",
+              "name": "fixture_json",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a0347d8e-b5f3-464f-9407-e25dc5e9e924",
+      "name": "Select trusted feed path",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        768
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const input = $input.first().json;\nif (input.mode === 'live' && input.fixture_json === '') {\n  return [{ json: { mode: 'live' } }];\n}\nif (input.mode !== 'fixture') {\n  throw new Error('invalid_ingest_mode');\n}\nif (typeof input.fixture_json !== 'string' || input.fixture_json.length === 0 || input.fixture_json.length > 2097152) throw new Error('invalid_fixture_feed');\nlet feed;\ntry {\n  feed = JSON.parse(input.fixture_json);\n} catch {\n  throw new Error('invalid_fixture_feed');\n}\nreturn [{ json: { mode: 'fixture', source: 'demo.usgs', feed } }];\n"
+      }
+    },
+    {
+      "id": "0dd6fadf-0ca0-4173-850a-dd0102b210f7",
+      "name": "Use live USGS feed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        672,
+        768
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.mode }}",
+              "rightValue": "live",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "fe4c29ca-f2b0-42ce-b500-92c6181e3e1d",
+      "name": "Fetch USGS all-hour feed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        896,
+        704
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson",
+        "authentication": "none",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "15d65174-1eb2-4677-a49b-35e71dd6845a",
+      "name": "Mark live USGS source",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1120,
+        704
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "live-source",
+              "name": "source",
+              "value": "usgs",
+              "type": "string"
+            },
+            {
+              "id": "live-feed",
+              "name": "feed",
+              "value": "={{ $json }}",
+              "type": "object"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "9555ef24-ae74-40bc-8831-990cea1a22c2",
+      "name": "Normalize earthquake records",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        768
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const input = $input.first().json;\nif ((input.source !== 'usgs' && input.source !== 'demo.usgs') || !input.feed || input.feed.type !== 'FeatureCollection' || !Array.isArray(input.feed.features)) {\n  throw new Error('invalid_feed');\n}\nconst features = input.feed.features;\nif (features.length > 1000) throw new Error('feed_too_many_features');\nlet size;\ntry {\n  size = encodeURIComponent(JSON.stringify(input.feed)).replace(/%[0-9A-F]{2}/gi, 'x').length;\n} catch {\n  throw new Error('invalid_feed');\n}\nif (size > 2097152) throw new Error('feed_too_large');\nconst events = [];\nconst diagnostics = [];\nfor (const feature of features) {\n  const id = feature && feature.id;\n  const safeId = typeof id === 'string' && /^[!-~]{1,128}$/.test(id) ? id : null;\n  if (!safeId) {\n    diagnostics.push({ code: 'invalid_external_id' });\n    continue;\n  }\n  const properties = feature && feature.properties;\n  if (feature.type !== 'Feature' || !properties || properties.type !== 'earthquake') {\n    diagnostics.push({ code: 'unsupported_feature', external_id: safeId });\n    continue;\n  }\n  const mag = properties && properties.mag;\n  if (typeof mag !== 'number' || !Number.isFinite(mag)) {\n    diagnostics.push({ code: 'invalid_magnitude', external_id: safeId });\n    continue;\n  }\n  const ms = properties.time;\n  if (typeof ms !== 'number' || !Number.isFinite(ms) || !Number.isInteger(ms) || ms < -62135596800000 || ms > 253402300799999) {\n    diagnostics.push({ code: 'invalid_occurrence', external_id: safeId });\n    continue;\n  }\n  const occurred = new Date(ms).toISOString();\n  const place = typeof properties.place === 'string' ? properties.place.replace(/[\\x00-\\x1f\\x7f-\\x9f]/g, ' ').trim().slice(0, 200) : '';\n  const fallback = place ? `M ${mag} - ${place}` : `M ${mag} - Earthquake`;\n  const rawTitle = typeof properties.title === 'string' && properties.title.trim() ? properties.title : fallback;\n  const title = rawTitle.replace(/[\\x00-\\x1f\\x7f-\\x9f]/g, ' ').trim().slice(0, 300).trim() || 'Earthquake';\n  let url = null;\n  if (typeof properties.url === 'string' && properties.url.length <= 2048 && /^https?:\\/\\/[^\\s\\x00-\\x1f\\x7f-\\x9f]+$/.test(properties.url)) {\n    const authority = /^https?:\\/\\/([^\\/?#]+)/.exec(properties.url)?.[1];\n    if (authority && /^[A-Za-z0-9.-]+(?::[0-9]{1,5})?$/.test(authority)) url = properties.url;\n  }\n  events.push({ contract_version: 1, source: input.source, external_id: safeId, event_type: 'earthquake', occurred_at: occurred, title, source_url: url, data: { magnitude: mag } });\n}\nreturn [{ json: { events, diagnostics } }];\n"
+      }
+    },
+    {
+      "id": "0ac41bc2-db6c-487d-9bdf-186d262cea54",
+      "name": "Split canonical events",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        1568,
+        768
+      ],
+      "parameters": {
+        "fieldToSplitOut": "events",
+        "include": "noOtherFields"
+      }
+    },
+    {
+      "id": "3108498a-9f46-4314-8133-a2bb94f908a2",
+      "name": "Deduplicate current feed",
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        768
+      ],
+      "parameters": {
+        "operation": "removeDuplicateInputItems",
+        "compare": "selectedFields",
+        "fieldsToCompare": "source,external_id",
+        "options": {
+          "removeOtherFields": false
+        }
+      }
+    },
+    {
+      "id": "bbf3c5c3-be2c-4b2c-9bfb-430fc23ec707",
+      "name": "Deduplicate previous executions",
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 2,
+      "position": [
+        2016,
+        768
+      ],
+      "parameters": {
+        "operation": "removeItemsSeenInPreviousExecutions",
+        "logic": "removeItemsWithAlreadySeenKeyValues",
+        "dedupeValue": "={{ $json.source + \":\" + $json.external_id }}",
+        "options": {
+          "scope": "node",
+          "historySize": 10000
+        }
+      }
+    },
+    {
+      "id": "0558a30a-96c0-48e1-af22-88122311a5ac",
+      "name": "Load owner alert configuration",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2240,
+        768
+      ],
+      "parameters": {
+        "resource": "database",
+        "operation": "executeQuery",
+        "query": "WITH input AS (SELECT $1::jsonb AS event)\nSELECT input.event,\n       COALESCE(jsonb_agg(jsonb_build_object(\n           'id', a.id, 'enabled', a.enabled, 'event_type', a.event_type,\n           'condition_field', a.condition_field,\n           'condition_operator', a.condition_operator,\n           'condition_value_type', a.condition_value_type,\n           'condition_value', a.condition_value,\n           'email_destination', u.email_destination,\n           'slack_destination', u.slack_destination\n       ) ORDER BY a.id) FILTER (WHERE a.id IS NOT NULL), '[]'::jsonb) AS alerts\nFROM input\nLEFT JOIN (public.alerts AS a JOIN public.users AS u ON u.id = a.owner_id)\n       ON a.enabled = true AND a.event_type = input.event->>'event_type'\nGROUP BY input.event;\n",
+        "options": {
+          "queryBatching": "independently",
+          "queryReplacement": "={{ [JSON.stringify($json)] }}"
+        }
+      }
+    },
+    {
+      "id": "b4e0b8d6-a44c-4d10-9c47-666d1a394de9",
+      "name": "Evaluate typed magnitude alerts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2464,
+        768
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const output = [];\nconst safeEvent = event => ({\n  source: typeof event?.source === 'string' && /^(?:usgs|demo\\.usgs)$/.test(event.source) ? event.source : undefined,\n  external_id: typeof event?.external_id === 'string' && /^[!-~]{1,128}$/.test(event.external_id) ? event.external_id : undefined,\n});\nconst diagnostic = (code, event, alertId) => ({ json: { channel: 'diagnostic', code, ...safeEvent(event), ...(alertId ? { alert_id: alertId } : {}) } });\nconst validAlertId = id => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) && !/^0{8}-0{4}-0{4}-0{4}-0{12}$/i.test(id);\nconst validEmail = value => typeof value === 'string' && value.length <= 254 && /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)+$/.test(value) && !value.includes('..');\nfor (const item of $input.all()) {\n  const { event, alerts } = item.json ?? {};\n  const magnitude = event?.data?.magnitude;\n  if (event?.contract_version !== 1 || typeof event?.source !== 'string' || !/^(?:usgs|demo\\.usgs)$/.test(event.source) || typeof event?.external_id !== 'string' || !/^[!-~]{1,128}$/.test(event.external_id) || event?.event_type !== 'earthquake' || typeof magnitude !== 'number' || !Number.isFinite(magnitude) || !Array.isArray(alerts)) {\n    output.push(diagnostic('invalid_event_or_envelope', event));\n    continue;\n  }\n  for (const alert of alerts) {\n    if (!alert || alert.enabled !== true) continue;\n    if (!validAlertId(alert.id)) { output.push(diagnostic('invalid_alert_id', event)); continue; }\n    const id = alert.id;\n    if (alert.event_type !== 'earthquake' || alert.condition_field !== 'magnitude' || alert.condition_operator !== 'gte' || alert.condition_value_type !== 'number') {\n      output.push(diagnostic('unsupported_condition', event, id));\n      continue;\n    }\n    if (typeof alert.condition_value !== 'number' || !Number.isFinite(alert.condition_value)) {\n      output.push(diagnostic('invalid_threshold', event, id));\n      continue;\n    }\n    if (magnitude < alert.condition_value) continue;\n    const notification = (channel, destination) => ({ json: { event, alert_id: id, channel, destination } });\n    const slack = alert.slack_destination;\n    if (slack !== null && slack !== undefined) {\n      if (typeof slack !== 'string' || !/^[A-Z0-9]{2,80}$/.test(slack)) output.push(diagnostic('invalid_slack_destination', event, id));\n      else output.push(notification('slack', slack));\n    }\n    const email = alert.email_destination;\n    if (email !== null && email !== undefined) {\n      if (!validEmail(email)) output.push(diagnostic('invalid_email_destination', event, id));\n      else output.push(notification('email', email));\n    }\n  }\n}\nreturn output;\n"
+      }
+    },
+    {
+      "id": "0bee2ccd-d2e2-47b9-8a0d-99ce9005a4a2",
+      "name": "Complete manual processing",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        2912,
+        128
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "complete-code",
+              "name": "code",
+              "value": "processing_complete",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "3a887808-3b7b-4872-894e-60dcd85ff2b7",
+      "name": "Route notification channel",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        2912,
+        320
+      ],
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            {
+              "outputKey": "Slack",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.channel }}",
+                    "rightValue": "slack",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "outputKey": "Email",
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.channel }}",
+                    "rightValue": "email",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Diagnostic or unsupported"
+        }
+      }
+    },
+    {
+      "id": "fab72da2-0da5-41b4-96f9-5ce0694a90f8",
+      "name": "Prepare safe Slack text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3136,
+        96
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const output = [];\nconst escape = value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nfor (const item of $input.all()) {\n  const { event, alert_id: alertId, channel, destination } = item.json ?? {};\n  if (channel !== 'slack' || typeof destination !== 'string' || !/^[A-Z0-9]{2,80}$/.test(destination) || typeof event?.external_id !== 'string' || !/^[!-~]{1,128}$/.test(event.external_id) || typeof event?.title !== 'string' || typeof event?.data?.magnitude !== 'number' || !Number.isFinite(event.data.magnitude)) {\n    throw new Error('invalid_slack_notification');\n  }\n  const synthetic = event.source === 'demo.usgs' ? '[SYNTHETIC] ' : '';\n  const text = `${synthetic}Earthquake M ${event.data.magnitude}: ${escape(event.title)}\\nOccurred: ${escape(event.occurred_at)}\\nSource: ${escape(event.source)}\\nEvent: ${escape(event.external_id)}\\nAlert: ${escape(alertId)}`;\n  output.push({ json: { destination, text } });\n}\nreturn output;\n"
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "cb15295d-a2cf-4f4e-acad-2a401059ccb9",
+      "name": "Send Slack notification",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.7,
+      "position": [
+        3360,
+        0
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "authentication": "accessToken",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.destination }}"
+        },
+        "messageType": "text",
+        "text": "={{ $json.text }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false,
+          "mrkdwn": false,
+          "link_names": false,
+          "unfurl_links": false,
+          "unfurl_media": false
+        }
+      },
+      "disabled": false,
+      "onError": "continueErrorOutput",
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "17d7cf28-8e2e-42b8-9aae-7f86307319f7",
+      "name": "Record accepted Slack diagnostic",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        3584,
+        464
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "accepted-channel",
+              "name": "channel",
+              "value": "diagnostic",
+              "type": "string"
+            },
+            {
+              "id": "accepted-code",
+              "name": "code",
+              "value": "slack_accepted",
+              "type": "string"
+            },
+            {
+              "id": "accepted-source",
+              "name": "source",
+              "value": "={{ $('Process each notification').item.json.event.source }}",
+              "type": "string"
+            },
+            {
+              "id": "accepted-external-id",
+              "name": "external_id",
+              "value": "={{ $('Process each notification').item.json.event.external_id }}",
+              "type": "string"
+            },
+            {
+              "id": "accepted-alert-id",
+              "name": "alert_id",
+              "value": "={{ $('Process each notification').item.json.alert_id }}",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "f2206dcb-16a0-46ee-ad2d-eb076ad89014",
+      "name": "Process each notification",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2688,
+        768
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {
+          "reset": false
+        }
+      }
+    },
+    {
+      "id": "f906aade-0a4b-433c-b471-3c1c96d4e09e",
+      "name": "Record unsupported email diagnostic",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        3136,
+        288
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "email-channel",
+              "name": "channel",
+              "value": "diagnostic",
+              "type": "string"
+            },
+            {
+              "id": "email-code",
+              "name": "code",
+              "value": "email_transport_not_implemented",
+              "type": "string"
+            },
+            {
+              "id": "email-source",
+              "name": "source",
+              "value": "={{ $json.event.source }}",
+              "type": "string"
+            },
+            {
+              "id": "email-external-id",
+              "name": "external_id",
+              "value": "={{ $json.event.external_id }}",
+              "type": "string"
+            },
+            {
+              "id": "email-alert-id",
+              "name": "alert_id",
+              "value": "={{ $json.alert_id }}",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "f4f15a4a-fb8e-46ff-a047-febae0c2e977",
+      "name": "Record unsupported channel diagnostic",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        3136,
+        480
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "unsupported-channel",
+              "name": "channel",
+              "value": "diagnostic",
+              "type": "string"
+            },
+            {
+              "id": "unsupported-code",
+              "name": "code",
+              "value": "={{ $json.code ?? 'unsupported_channel' }}",
+              "type": "string"
+            },
+            {
+              "id": "unsupported-source",
+              "name": "source",
+              "value": "={{ $json.event?.source ?? $json.source ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "unsupported-external-id",
+              "name": "external_id",
+              "value": "={{ $json.event?.external_id ?? $json.external_id ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "unsupported-alert-id",
+              "name": "alert_id",
+              "value": "={{ $json.alert_id ?? '' }}",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "e384a01c-4d14-4168-befa-a9b8c7cfdb92",
+      "name": "Record invalid Slack diagnostic",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        3360,
+        288
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "invalid-channel",
+              "name": "channel",
+              "value": "diagnostic",
+              "type": "string"
+            },
+            {
+              "id": "invalid-code",
+              "name": "code",
+              "value": "invalid_slack_notification_discarded",
+              "type": "string"
+            },
+            {
+              "id": "invalid-source",
+              "name": "source",
+              "value": "={{ $('Process each notification').item.json.event.source }}",
+              "type": "string"
+            },
+            {
+              "id": "invalid-external-id",
+              "name": "external_id",
+              "value": "={{ $('Process each notification').item.json.event.external_id }}",
+              "type": "string"
+            },
+            {
+              "id": "invalid-alert-id",
+              "name": "alert_id",
+              "value": "={{ $('Process each notification').item.json.alert_id }}",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "da9c9bde-3ada-40e3-8dac-311c60191b5c",
+      "name": "Record exhausted Slack diagnostic",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        3584,
+        768
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "discarded-channel",
+              "name": "channel",
+              "value": "diagnostic",
+              "type": "string"
+            },
+            {
+              "id": "discarded-code",
+              "name": "code",
+              "value": "slack_retries_exhausted_discarded",
+              "type": "string"
+            },
+            {
+              "id": "discarded-source",
+              "name": "source",
+              "value": "={{ $('Process each notification').item.json.event.source }}",
+              "type": "string"
+            },
+            {
+              "id": "discarded-external-id",
+              "name": "external_id",
+              "value": "={{ $('Process each notification').item.json.event.external_id }}",
+              "type": "string"
+            },
+            {
+              "id": "discarded-alert-id",
+              "name": "alert_id",
+              "value": "={{ $('Process each notification').item.json.alert_id }}",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Manual alert processing": {
+      "main": [
+        [
+          {
+            "node": "Operator feed input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Operator feed input": {
+      "main": [
+        [
+          {
+            "node": "Select trusted feed path",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select trusted feed path": {
+      "main": [
+        [
+          {
+            "node": "Use live USGS feed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Use live USGS feed?": {
+      "main": [
+        [
+          {
+            "node": "Fetch USGS all-hour feed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normalize earthquake records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch USGS all-hour feed": {
+      "main": [
+        [
+          {
+            "node": "Mark live USGS source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark live USGS source": {
+      "main": [
+        [
+          {
+            "node": "Normalize earthquake records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize earthquake records": {
+      "main": [
+        [
+          {
+            "node": "Split canonical events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split canonical events": {
+      "main": [
+        [
+          {
+            "node": "Deduplicate current feed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deduplicate current feed": {
+      "main": [
+        [
+          {
+            "node": "Deduplicate previous executions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deduplicate previous executions": {
+      "main": [
+        [
+          {
+            "node": "Load owner alert configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load owner alert configuration": {
+      "main": [
+        [
+          {
+            "node": "Evaluate typed magnitude alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate typed magnitude alerts": {
+      "main": [
+        [
+          {
+            "node": "Process each notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route notification channel": {
+      "main": [
+        [
+          {
+            "node": "Prepare safe Slack text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record unsupported email diagnostic",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record unsupported channel diagnostic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare safe Slack text": {
+      "main": [
+        [
+          {
+            "node": "Send Slack notification",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record invalid Slack diagnostic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Slack notification": {
+      "main": [
+        [
+          {
+            "node": "Record accepted Slack diagnostic",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record exhausted Slack diagnostic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record accepted Slack diagnostic": {
+      "main": [
+        [
+          {
+            "node": "Process each notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process each notification": {
+      "main": [
+        [
+          {
+            "node": "Complete manual processing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Route notification channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record unsupported email diagnostic": {
+      "main": [
+        [
+          {
+            "node": "Process each notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record unsupported channel diagnostic": {
+      "main": [
+        [
+          {
+            "node": "Process each notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record invalid Slack diagnostic": {
+      "main": [
+        [
+          {
+            "node": "Process each notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record exhausted Slack diagnostic": {
+      "main": [
+        [
+          {
+            "node": "Process each notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1,5 +1,7 @@
 # ADR-004: Coordinate durable delivery, retries, and circuit breaking through the application
 
+> Runtime boundary amendment (2026-09-14): [ADR-012](ADR-012-use-n8n-native-runtime-state.md) supersedes the runtime persistence, queue, recovery and delivery-guarantee provisions described below. Unrelated decisions remain in force; this text preserves the historical design.
+
 ## Status
 
 **Rejected allocation; superseded by ADR-005.** Recorded on 2026-09-14 during milestone 2. The user explicitly rejected application-owned circuit breaking and n8n/application HTTP integration. [ADR-005](ADR-005-direct-database-integration-and-workflow-owned-delivery.md) records the replacement boundary. The proposal below is retained to explain what changed; it must not be implemented. Durable intent, automatic retries for uncertain email/Slack delivery, and a circuit breaker remain required. None of this proposal was implemented.
