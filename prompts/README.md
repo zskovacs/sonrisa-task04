@@ -10,6 +10,9 @@ This directory contains only substantive user-authored task requests. It is not 
 | [018](018-rename-context-and-add-application-docker.md) | Rename the context and add application-only Docker testing. |
 | [019](019-alert-configuration-model-and-management-ui.md) | Design and implement alert configuration, ownership-aware management, Tailwind styling, and OpenTelemetry. |
 | [020](020-store-shared-user-destinations-and-use-fluentvalidation.md) | Correct destination ownership and use an existing validation framework. |
+| [021](021-first-end-to-end-n8n-alert-workflow.md) | Reconstruct context, approve a design, and implement the first end-to-end n8n alert workflow. |
+| [022](022-simplify-first-runtime-workflow-design.md) | Simplify and approve the first runtime design, keeping matching in n8n and delivery explicitly selected. |
+| [023](023-create-sonrisa-slack-app.md) | Create the Sonrisa DEV Slack app, configure its scopes, and configure the n8n credential where possible. |
 
 Record meaningful user requests that start a milestone or assign implementation/product-validation work. Exclude agent-generated plans, delegated assignments, internal review prompts and loops, brainstorming answers, clarifications, approvals, status replies, and routine housekeeping. Honor explicit requests not to record a message.
 

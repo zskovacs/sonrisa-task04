@@ -1,0 +1,162 @@
+{
+  "name": "Sonrisa - Evaluate Pending Events - DEV",
+  "description": "Manual evaluation of one Pending canonical event across all owners. n8n evaluates the typed magnitude condition; parameterized writes create unique intent before event completion.",
+  "active": false,
+  "nodes": [
+    {
+      "id": "89a74dd8-18b4-4f13-865d-c55e0b4a0cdf",
+      "name": "Manual evaluation",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "bb088ddb-671a-4a9c-b5ce-96c89463ad1a",
+      "name": "Read oldest pending event",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        224,
+        0
+      ],
+      "parameters": {
+        "resource": "database",
+        "operation": "executeQuery",
+        "query": "SELECT id\nFROM public.source_events\nWHERE processing_status = 'pending'\nORDER BY received_at, id\nLIMIT 1;\n"
+      }
+    },
+    {
+      "id": "2dd61517-1fd2-43fe-ab65-2e52452aabd5",
+      "name": "Load enabled alert snapshot",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        448,
+        0
+      ],
+      "parameters": {
+        "resource": "database",
+        "operation": "executeQuery",
+        "query": "WITH selected AS (\n    SELECT id, contract_version, source, external_id, event_type, occurred_at,\n           title, source_url, data, received_at, processing_status\n    FROM public.source_events\n    WHERE id = $1::uuid AND processing_status = 'pending'\n)\nSELECT to_jsonb(e) AS event,\n       COALESCE(c.alerts, '[]'::jsonb) AS alerts\nFROM selected AS e\nLEFT JOIN LATERAL (\n    SELECT jsonb_agg(jsonb_build_object(\n        'id', a.id,\n        'enabled', a.enabled,\n        'event_type', a.event_type,\n        'condition_field', a.condition_field,\n        'condition_operator', a.condition_operator,\n        'condition_value_type', a.condition_value_type,\n        'condition_value', a.condition_value,\n        'email_destination', u.email_destination,\n        'slack_destination', u.slack_destination\n    ) ORDER BY a.id) AS alerts\n    FROM public.alerts AS a\n    JOIN public.users AS u ON u.id = a.owner_id\n    WHERE a.enabled = true\n) AS c ON true;\n",
+        "options": {
+          "queryReplacement": "={{ $json.id }}"
+        }
+      }
+    },
+    {
+      "id": "a9d78c04-89fc-4c18-ae5f-c6755769f2be",
+      "name": "Evaluate typed magnitude alerts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const input = $input.first().json;\nconst event = input.event;\nif (!event || typeof event.id !== 'string' || !Array.isArray(input.alerts)) throw new Error('invalid_evaluation_envelope');\nconst intents = [];\nconst diagnostics = [];\nconst magnitude = event.data && event.data.magnitude;\nif (event.event_type !== 'earthquake' || typeof magnitude !== 'number' || !Number.isFinite(magnitude)) {\n  diagnostics.push({ code: 'invalid_event_magnitude' });\n  return [{ json: { event_id: event.id, intents, diagnostics } }];\n}\nfor (const alert of input.alerts) {\n  if (!alert || alert.enabled !== true) continue;\n  const id = typeof alert.id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(alert.id) && !/^0{8}-0{4}-0{4}-0{4}-0{12}$/i.test(alert.id) ? alert.id : null;\n  if (!id) { diagnostics.push({ code: 'invalid_alert_id' }); continue; }\n  if (alert.event_type !== 'earthquake' || alert.condition_field !== 'magnitude' || alert.condition_operator !== 'gte' || alert.condition_value_type !== 'number') {\n    diagnostics.push({ code: 'unsupported_condition', alert_id: id });\n    continue;\n  }\n  if (typeof alert.condition_value !== 'number' || !Number.isFinite(alert.condition_value)) {\n    diagnostics.push({ code: 'invalid_threshold', alert_id: id });\n    continue;\n  }\n  if (magnitude < alert.condition_value) continue;\n  const slack = alert.slack_destination;\n  const email = alert.email_destination;\n  if (slack !== null && slack !== undefined && (typeof slack !== 'string' || !/^[A-Z0-9]{2,80}$/.test(slack))) {\n    diagnostics.push({ code: 'invalid_slack_destination', alert_id: id });\n    continue;\n  }\n  if (email !== null && email !== undefined && (typeof email !== 'string' || email.length > 254 || !/^[^\\s\\x00-\\x1f\\x7f@]+@[^\\s\\x00-\\x1f\\x7f@]+$/.test(email))) {\n    diagnostics.push({ code: 'invalid_email_destination', alert_id: id });\n    continue;\n  }\n  if (slack) intents.push({ alert_id: id, channel: 'slack', destination: slack, status: 'pending', last_error: null });\n  if (email) intents.push({ alert_id: id, channel: 'email', destination: email, status: 'unsupported', last_error: 'transport_not_implemented' });\n}\nreturn [{ json: { event_id: event.id, intents, diagnostics } }];\n"
+      }
+    },
+    {
+      "id": "be5bd458-9aec-48bd-831e-2975e518d304",
+      "name": "Insert prepared delivery intents",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        896,
+        0
+      ],
+      "parameters": {
+        "resource": "database",
+        "operation": "executeQuery",
+        "query": "WITH inserted AS (\n    INSERT INTO public.notification_deliveries\n        (source_event_id, alert_id, channel, destination, status, last_error)\n    SELECT ($1::jsonb->>'event_id')::uuid, x.alert_id, x.channel, x.destination, x.status, x.last_error\n    FROM jsonb_to_recordset($1::jsonb->'intents') AS x(\n        alert_id uuid, channel text, destination text, status text, last_error text)\n    ON CONFLICT (source_event_id, alert_id, channel) DO NOTHING\n    RETURNING id\n)\nSELECT count(*)::integer AS inserted_count FROM inserted;\n",
+        "options": {
+          "queryReplacement": "={{ JSON.stringify($(\"Evaluate typed magnitude alerts\").first().json) }}"
+        }
+      }
+    },
+    {
+      "id": "718a3c6b-1015-4d03-ad7a-be662bb979b4",
+      "name": "Complete evaluated event",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1120,
+        0
+      ],
+      "parameters": {
+        "resource": "database",
+        "operation": "executeQuery",
+        "query": "UPDATE public.source_events\nSET processing_status = 'evaluated'\nWHERE id = $1::uuid AND processing_status = 'pending'\nRETURNING id;\n",
+        "options": {
+          "queryReplacement": "={{ $(\"Evaluate typed magnitude alerts\").first().json.event_id }}"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Manual evaluation": {
+      "main": [
+        [
+          {
+            "node": "Read oldest pending event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read oldest pending event": {
+      "main": [
+        [
+          {
+            "node": "Load enabled alert snapshot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load enabled alert snapshot": {
+      "main": [
+        [
+          {
+            "node": "Evaluate typed magnitude alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluate typed magnitude alerts": {
+      "main": [
+        [
+          {
+            "node": "Insert prepared delivery intents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert prepared delivery intents": {
+      "main": [
+        [
+          {
+            "node": "Complete evaluated event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

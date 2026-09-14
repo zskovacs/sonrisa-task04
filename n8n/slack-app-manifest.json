@@ -1,0 +1,25 @@
+{
+  "display_information": {
+    "name": "Sonrisa DEV Alerts",
+    "description": "Controlled Sonrisa DEV earthquake alert notifications",
+    "background_color": "#24465c"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "Sonrisa DEV Alerts",
+      "always_online": false
+    }
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "chat:write"
+      ]
+    }
+  },
+  "settings": {
+    "socket_mode_enabled": false,
+    "org_deploy_enabled": false,
+    "token_rotation_enabled": false
+  }
+}

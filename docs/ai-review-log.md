@@ -1,5 +1,32 @@
 # AI review log
 
+## 2026-09-14: Live repeat entry exposed n8n's empty-UPDATE result
+
+After the single acknowledged Slack send, full re-entry correctly updated zero delivery rows and made no second send. However, n8n emitted a generic `success=true` item for the empty UPDATE result, and the next query failed because no ID existed. Relational tests alone had not exposed this native-node adaptation. The claim keeps the same atomic UPDATE/predicate/parameter inside one CTE and returns explicit columns through a final SELECT. Live execution 29 then completed with an empty claim result and no downstream transport. Final suites passed 80/80 guarded .NET and 20/20 Node tests; actual remote exports were refreshed. No new retry logic or historical-state reset was introduced. [Actual failure and correction](../evidence/reviews/2026-09-14-first-runtime-validation.md#final-runtime-acceptance).
+
+## 2026-09-14: Native Slack errors invalidated a structured-code assumption
+
+The initial known-rejection IF inspected only `error.code`. Live execution 23 instead exposed n8n's missing-scope rejection as a plain string, incorrectly leaving its intent Processing with an unknown-outcome diagnostic. Final review classified this as Important: conservative no-resend behavior did not make the delivery-state classification accurate. The existing IF now recognizes a bounded exact allowlist of native rejection strings and structured codes, while timeout/unknown/misleading text stays ambiguous. No broad text matching, retries or extra workflow nodes were added. A red/green regression and pinned n8n executions 24/25 verified known-rejection and timeout branches; all PostgreSQL/Slack calls were mocked in those tests. The normal claim path was restored and its actual export refreshed; all 20 Node tests passed. The two earlier Processing records remain untouched. See [review and execution evidence](../evidence/reviews/2026-09-14-first-runtime-validation.md#whole-branch-review-correction).
+
+## 2026-09-14: Workflow export tests depended on ignored session files
+
+The first exporter read a hardcoded ignored snapshot path, and its tests required those session artifacts. That passed locally but could not provide reproducibility from a fresh checkout. The controller rejected this dependency. The corrected CLI accepts an explicit snapshot path or stdin; tests load tracked sanitized workflows and add synthetic sensitive metadata in memory to verify its removal. The same Node suite passed 17/17 after correction. The runbook also scopes the below-threshold no-match result to the test-owned threshold-5 alerts: the pre-existing alert had legitimately matched under its own configuration. [Actual validation and limits](../evidence/reviews/2026-09-14-first-runtime-validation.md#export-reproducibility-review).
+
+## 2026-09-14: User simplified the first runtime design
+
+- The user approved USGS and the bounded manual slice but rejected alias-aware identity, a complex atomic SQL matcher, extra revision/attempt metadata and the manual-only dispatch framework. Preserve the useful USGS identifier discovery without treating its proposed solution as approved.
+- The accepted replacement is same-source/external-ID uniqueness, n8n-owned typed evaluation, separate idempotent intent writes and completion, and one explicit-ID Slack delivery workflow. Pending replay remains recoverable, but configuration can change between evaluations; there is no event-wide atomic rule snapshot. The destination on an existing intent remains immutable.
+- ADR-011 records this explicit architectural correction. No aliases, claim tokens, attempt tables or dispatch_mode column are authorized. Full automatic retry/circuit recovery and email remain deferred; unresolved delivery ambiguity must be reported honestly.
+- The exact user-authored correction is [prompt 022](../prompts/022-simplify-first-runtime-workflow-design.md). This entry supersedes the earlier pre-approval recommendations below; it is not an implementation success claim.
+
+## 2026-09-14: First runtime investigation exposed identity and backlog assumptions
+
+- Context: pre-approval brainstorming for milestone 5; no runtime implementation has begun.
+- Finding: USGS documents that the preferred event ID can change. Two successful feed reads with repeated IDs do not establish immutable identity. The proposed alias-aware database boundary must explicitly bound inputs, avoid automatic merges of ambiguous canonical records, and disclose that previously disjoint provider associations can still describe one physical occurrence.
+- Independent review correction: manually evaluating the first bounded feed can leave notification intents for later delivery. Keeping today's schedule inactive alone does not prevent tomorrow's delivery workflow from draining that backlog. The revised proposal includes persisted manual-only dispatch and an explicit release/disposition gate before future automation.
+- Status: provider/alias handling and the limited delivery safeguards await user approval. No new architectural decision, migration, workflow or send is claimed. The existing plan already requires atomic unique delivery intent in milestone 5; full automatic retry/circuit recovery and email remain milestone 6.
+- Evidence: [read-only context reconstruction](../evidence/reviews/2026-09-14-first-runtime-context-review.md).
+
 Use this log for material AI output that was rejected, substantially corrected, based on a false assumption, unnecessarily complex, changed after validation, or accepted only after a specific verification step. Do not log trivial edits to create activity. Entries must describe work that actually happened.
 
 ## Entry format
@@ -156,3 +183,7 @@ The controller rejected a first validator draft that merely wrapped custom field
 ### Database whitespace contract correction
 
 The final branch reviewer found that PostgreSQL btrim without a character set removes ordinary spaces but leaves tabs, allowing whitespace-only alert names and sole email destinations through direct writes despite the documented nonblank checks. Read-only SQL reproduced the issue; it also showed that the database locale’s POSIX whitespace class does not recognize nonbreaking space. The correction uses an explicit Unicode trim set matching .NET, a forward constraint-only migration preserving both applied migrations, and guarded direct-write regression checks. The architecture diagram’s unsupported “secure DEV connection” label was also changed to neutral wording consistent with ADR-007. The forward migration was applied after review, both regression tests changed from expected failure to passing, and the final guarded suite passed 67/67, as recorded in [evidence](../evidence/reviews/2026-09-14-alert-configuration-validation.md).
+
+## 2026-09-14 — Real PostgreSQL checks corrected a test assumption
+
+The first six runtime relational tests ran after reviewed migration application. Four passed; both restricted-delete tests correctly received a database rejection but incorrectly expected the generic foreign-key SQLSTATE `23503`. PostgreSQL 18 returned `23001` for the explicit RESTRICT action. The assertions were corrected to `PostgresErrorCodes.RestrictViolation`; the same real-DEV suite passed 6/6 and scoped review approved. No schema behavior was weakened. [Actual evidence](../evidence/reviews/2026-09-14-first-runtime-validation.md).

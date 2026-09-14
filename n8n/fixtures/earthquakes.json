@@ -1,0 +1,8 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {"type":"Feature","id":"sonrisa-fixture-49","properties":{"type":"earthquake","mag":4.9,"time":1789392000000,"title":"M 4.9 - <@U123> & coast","url":"https://earthquake.usgs.gov/earthquakes/eventpage/sonrisa-fixture-49"}},
+    {"type":"Feature","id":"sonrisa-fixture-50","properties":{"type":"earthquake","mag":5,"time":1789392060000,"title":"M 5.0 - Threshold","url":"https://earthquake.usgs.gov/earthquakes/eventpage/sonrisa-fixture-50"}},
+    {"type":"Feature","id":"sonrisa-fixture-51","properties":{"type":"earthquake","mag":5.1,"time":1789392120000,"title":"M 5.1 - Above","url":"https://earthquake.usgs.gov/earthquakes/eventpage/sonrisa-fixture-51"}}
+  ]
+}

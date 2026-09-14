@@ -4,7 +4,7 @@ The original [brief](00-product-brief.md) establishes alerts, email, Slack, exte
 
 ## Current milestone
 
-Milestone 2 completed the architecture baseline at `b68e3ad`, and milestone 3 completed the skeleton at `5880801`. The current milestone 4 designs alert configuration and management before runtime workflows, following [the request](../prompts/019-alert-configuration-model-and-management-ui.md) and its scope clarification. The feature design is approved. Configuration persistence, a first product migration, management pages, Tailwind assets and OpenTelemetry logs/request traces are implemented. Actual acceptance checks are recorded in the [milestone evidence](../evidence/reviews/2026-09-14-alert-configuration-validation.md). This milestone retains one condition per alert, adds ownership-aware management for one configured owner under [ADR-008](adr/ADR-008-use-single-configured-mvp-owner.md), and includes minimal logs/traces and Razor Pages/Tailwind styling. Runtime processing, delivery, operational views, authentication, and multiple conditions remain outside this milestone.
+Milestones 2–4 are complete at `b68e3ad`, `5880801` and `98b000c`. The current milestone 5 implements the [approved simplified first runtime slice](superpowers/specs/2026-09-14-first-runtime-design.md), with acceptance tracked separately in evidence. Scope is USGS ingestion, canonical validation, source/external-ID deduplication, n8n-owned one-condition matching across owners, minimal durable intent, and one explicitly selected Slack send. All three workflows remain inactive. Automatic delivery draining/retries, email execution, attempts/circuits, operational views, authentication and multiple conditions remain outside this milestone. [ADR-011](adr/ADR-011-use-n8n-evaluation-and-replay-safe-runtime-writes.md) records the deliberate simplification.
 
 The completed skeleton followed [prompt 010](../prompts/010-create-application-skeleton.md), [ADR-006](adr/ADR-006-use-existing-shared-dev-infrastructure.md), and its reviewed [specification](superpowers/specs/2026-09-14-application-skeleton-design.md) and [plan](superpowers/plans/2026-09-14-application-skeleton.md). Its no-product-model restriction was specific to milestone 3; the broader product behavior below remains the MVP target.
 
@@ -16,10 +16,10 @@ Use a local ASP.NET Core/Razor Pages management application, EF Core product mig
 
 ## Included product behavior
 
-- **One initial real event type:** earthquakes from one provider selected later. The user confirmed that RSS in the example described ingestion generally, not a switch to news.
+- **One initial real event type:** earthquakes from the selected public USGS all-hour GeoJSON feed. The user confirmed that RSS in the example described ingestion generally, not a switch to news.
 - **Configurable alerts:** owner, name, enabled state, one supported condition, and a user profile holding shared email and/or Slack destinations. Initially the condition is earthquake magnitude greater than or equal to a user-selected finite numeric threshold. Unsupported fields/operators/values are rejected.
 - **Reusable event/rule boundary:** distinguish provider identity from canonical event type; use a common envelope and validated type-specific data. Another provider of the same type reuses its contract. New business meanings may need new logic, not a duplicate processing pipeline.
-- **Durable event processing:** unique source/external-event identity and Pending/Evaluated state. Retry unfinished evaluation even when the event is no longer new. Read one consistent rule snapshot and atomically create unique delivery intents and mark evaluation complete.
+- **Durable event processing:** unique source/external-event identity and Pending/Evaluated state. Retry unfinished evaluation even when the event is no longer new. Read one joined configuration snapshot, evaluate in n8n, create unique delivery intents, then mark evaluation complete in separate replay-safe steps.
 - **Durable delivery:** one intent per event/alert/channel, including an immutable matched-content/destination snapshot. Independent scheduled delivery does not depend on new event arrival. Include attempt/outcome records and visible permanent failures.
 - **Slack and email:** Slack proves the first external slice; email completes the required MVP and validates the channel boundary. One configured workspace and one sender profile, with at most one email and one Slack destination per user, shared across that user’s alerts under ADR-010. Live demonstrations use explicitly authorized destinations.
 - **Workflow-owned retries and circuit breaker:** retry transient/uncertain sends automatically with backoff, accepting possible external duplicates as the user requested. Keep independent persistent circuits per transport profile, pause calls while Open, and permit one recovery probe. No application-owned gate or retry service.
@@ -33,7 +33,7 @@ Connection-string values, including examples, must not enter tracked files. Use 
 
 | Candidate | Assessment for the first slice |
 | --- | --- |
-| Earthquake | A numeric threshold demonstrates structured normalization, identity, matching, and delivery with little interpretation. A [documented structured feed example](https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php) includes magnitude, occurrence/update times, and IDs; this is capability evidence, not provider selection. |
+| Earthquake | A numeric threshold demonstrates structured normalization, identity, matching, and delivery with little interpretation. A [documented structured feed example](https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php) includes magnitude, occurrence/update times, and IDs; USGS was subsequently selected in milestone 5. |
 | RSS/news | Keyword matching is plausible, but its usefulness and text semantics need product decisions; the [RSS specification](https://www.rssboard.org/rss-specification) makes item identifiers optional, so provider identity handling needs care. A second type can validate extension after the MVP. |
 | Market movement | Requires choosing reference price, measurement window, and data availability before the threshold has a stable meaning. Defer that extra semantic work. |
 
@@ -57,10 +57,10 @@ These are acceptance examples to implement and test, not claims that those resul
 ## Explicit planning limitations
 
 - Keep the first valid accepted snapshot per source/external ID. Provider corrections/retractions, including later magnitude threshold crossings, are not re-evaluated in this MVP. This is a deliberate simplifying assumption with a real missed-update limitation, not a discovered user requirement.
-- Evaluate rules current at atomic evaluation time; edits before a pending event is processed can affect it. Do not retrospectively evaluate completed events after creating/editing an alert.
+- Evaluate rules current at each joined configuration read; edits before a pending event is processed can affect it. Do not retrospectively evaluate completed events after creating/editing an alert.
 - The first poll processes the selected provider's bounded feed window, potentially including earlier occurrences. No additional historical archive import or completeness/latency guarantee is included.
 - Keep product event/intent identity until an explicit isolated demo reset. Automatic retention/deletion and notification expiry are deferred; long outages can leave old pending notifications.
-- The architecture provides durable recoverable attempts, not guaranteed provider availability, inbox placement, human receipt, or exactly-once external delivery.
+- The broader architecture plans durable recoverable attempts in milestone 6; milestone 5 provides durable intents and an explicit-ID claim, not guaranteed provider availability, inbox placement, human receipt, or exactly-once external delivery.
 
 The architecture documents configurable demo timing defaults, input-contract constraints to finalize with implementation, and failure classification requirements. Validate these against the actual selected nodes/providers; do not quietly relax recovery semantics to make a demo pass.
 

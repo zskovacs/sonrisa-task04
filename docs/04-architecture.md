@@ -1,10 +1,10 @@
 # MVP architecture
 
-This is the milestone 2 product design, amended for shared DEV under [ADR-006](adr/ADR-006-use-existing-shared-dev-infrastructure.md) and for single-owner management under [ADR-008](adr/ADR-008-use-single-configured-mvp-owner.md). The skeleton is implemented at `5880801`; milestone 4 adds ownership-aware configuration persistence and management under the [approved specification](superpowers/specs/2026-09-14-alert-configuration-design.md). Runtime workflows remain unimplemented. Milestone 4 now introduces configuration before runtime processing, following the deliberately amended [plan](01-plan.md). The user's corrected boundary in [ADR-005](adr/ADR-005-direct-database-integration-and-workflow-owned-delivery.md) remains authoritative for processing: the application manages conditions and presents the UI; n8n owns event processing and notification workflows and accesses the product database directly. There is no n8n/application HTTP integration.
+This is the current architecture, amended by [ADR-011](adr/ADR-011-use-n8n-evaluation-and-replay-safe-runtime-writes.md) for milestone 5. The [approved specification](superpowers/specs/2026-09-14-first-runtime-design.md) defines a minimal USGS-to-Slack slice; the [reviewed plan](superpowers/plans/2026-09-14-first-runtime.md) and evidence distinguish implementation from validation. The application manages configuration; n8n owns runtime processing through the product database. No n8n/application HTTP integration exists. Retry/circuit sections below describe deferred milestone-6 direction, not capabilities of the first slice.
 
 ## Product and runtime shape
 
-The single MVP operator configures an enabled earthquake alert with a magnitude threshold and a shared notification profile containing an email destination, Slack destination, or both. n8n ingests events, evaluates supported conditions, records durable notification intent, and sends notifications with retry and circuit breaking. The operator will see events and delivery outcomes in the later operational surface. Additional event types reuse the same supported contract and processing stages.
+The single MVP operator configures an enabled earthquake alert with a magnitude threshold and a shared notification profile containing an email destination, Slack destination, or both. n8n ingests events, evaluates supported conditions, records durable notification intent, and delivers one explicitly selected Slack intent. Automatic retries, circuit breaking and email execution remain milestone 6. The operator will see events and delivery outcomes in the later operational surface. Additional event types reuse the same supported contract and processing stages.
 
 Run the ASP.NET Core/Razor Pages application locally on the developer machine, directly or in the requested application-only Docker container with loopback host publishing. Use the existing shared DEV PostgreSQL server for the product database and the existing n8n runtime at `https://n8n.nasgard.io`. Do not provision local PostgreSQL or n8n. Hosted n8n owns its internal persistence entirely outside this repository; its storage is not part of the application database design. EF Core migrations own only the product schema. Confirm compatible application/provider versions and secure product-database connectivity during skeleton implementation; inspect n8n capabilities when relevant without changing shared service configuration. The service locations are user-confirmed, not connectivity test results.
 
@@ -20,7 +20,7 @@ flowchart LR
             Ingest[n8n ingest events]
             Normalize[Canonical normalization and validation]
             Evaluate[n8n evaluate pending events]
-            Deliver[n8n deliver pending notifications]
+            Deliver[n8n deliver selected Slack intent]
         end
     end
     Services <-->|EF Core over current DEV connection| ProductDB
@@ -28,13 +28,12 @@ flowchart LR
     Demo[Explicitly synthetic fixtures] --> Normalize[Canonical normalization and validation]
     Ingest --> Normalize
     Normalize -->|Insert Pending event or detect duplicate| ProductDB
-    Evaluate[n8n evaluate pending events] <-->|Read conditions; atomic evaluation and intent writes| ProductDB
-    Deliver[n8n deliver pending notifications] <-->|Claims, attempts and circuit state| ProductDB
+    Evaluate[n8n evaluate pending events] <-->|Read configuration; persist replay-safe results| ProductDB
+    Deliver[n8n deliver selected Slack intent] <-->|Claim selected intent; record outcome| ProductDB
     Deliver --> Slack[Slack]
-    Deliver --> Email[Email]
 ```
 
-The diagram shows the future product flow; milestone 3 implements no product workflows. The three scheduled responsibilities share the existing hosted n8n runtime. Its internal persistence is outside this diagram and product contract. Shared validation/transport steps may be reusable sub-workflows where they prevent duplication or permit independent tests. No generic workflow engine, broker, distributed cache, or extra worker service is needed.
+The diagram shows the approved first-slice responsibilities. All three workflows remain inactive, with manual execution for validation. Ingestion, evaluation and delivery have independent recovery boundaries. No generic workflow engine, broker, distributed cache, or extra worker service is needed.
 
 ## Responsibility and database access
 
@@ -42,9 +41,9 @@ The diagram shows the future product flow; milestone 3 implements no product wor
 | --- | --- | --- |
 | Razor Pages/application services | Create/edit/enable/disable user conditions, validate configuration, scope all alert operations to the configured owner, and render operational data. | Reads/writes configuration; reads workflow-owned event/delivery state. No event evaluator, delivery scheduler, or circuit state machine in application code. |
 | n8n ingestion | Poll the selected source, normalize/validate canonical data, and persist previously unseen events. | Dedicated runtime credential for product SQL; external credentials use n8n's credential system. |
-| n8n evaluation | Read active conditions, evaluate the supported typed rule, create unique delivery intent, and complete event processing. | One short atomic database operation per event. No direct external notification call while this transaction is open. |
-| n8n delivery | Obtain due work, implement retries/circuit breaking, send email/Slack, and persist attempts/outcomes. | Workflow-owned logic and operational records. Application database storage does not imply application behavioral ownership. |
-| Product PostgreSQL database | Configuration, canonical events, processing state, delivery/attempt records, and per-profile circuit state. | EF migrations own schema. n8n runtime can read configuration and read/write operational records; it cannot alter schema or user conditions. |
+| n8n evaluation | Read active conditions, evaluate the supported typed rule, create unique delivery intent, and complete event processing. | A joined configuration read, n8n evaluation, idempotent intent write, and separate event completion. No SQL business matcher or event-wide transaction. |
+| n8n delivery | Require one explicit Slack intent ID, conditionally claim it, send once, and persist the outcome. Automatic queue draining/retries and email are deferred. | Workflow-owned logic and operational records. Application database storage does not imply application behavioral ownership. |
+| Product PostgreSQL database | Configuration, canonical events, Pending/Evaluated state, and minimal delivery intent/outcome records. Attempts and circuits are future work. | EF migrations own schema. n8n runtime can read configuration and read/write operational records; it cannot alter schema or user conditions. |
 
 Use distinct least-privilege migration, application-runtime, and n8n product-workflow roles for the product database. [ADR-007](adr/ADR-007-accept-current-dev-database-access.md) permits the currently supplied application administrative credential for DEV only; production retains the restricted-role requirement. Outside that explicit DEV exception, runtime roles receive no schema-owner or superuser privileges; EF migration access is separate. Hosted n8n internal storage and its credentials are outside repository design, setup, and validation. Explicit column projections, parameterized values, and database constraints form the integration contract. Review every breaking schema change with the affected workflow queries. Do not build a duplicate application API for symmetry.
 
@@ -58,17 +57,17 @@ The management surface lists the configured owner's alerts and supports creation
 
 Use one runtime-configured Slack workspace/profile and one email sender/profile. Under ADR-010, the user edits a shared email destination, Slack destination, or both through notification settings; PostgreSQL stores them in users, joined through alerts.owner_id. Every alert uses that profile, with no per-alert channel selection. Credentials and arbitrary URLs are not user rule fields. Destination allowlists in application configuration are removed; transport onboarding and multi-workspace OAuth remain deferred. Validate and escape display/message text; source content cannot become HTML/script, executable SQL, or agent instructions. Use normal form anti-forgery protection even in the local UI.
 
-Disable rather than hard-delete alerts so historical deliveries remain inspectable. Changes affect later evaluation; already committed notification content/destination snapshots do not silently change. No historical rematching UI or mass replay is included.
+Disable rather than hard-delete alerts so historical deliveries remain inspectable. Changes affect later evaluation; already committed event/destination snapshots do not silently change. No historical rematching UI or mass replay is included.
 
 ## Canonical event and rule contract
 
-This is a conceptual contract, not a migration or finalized provider schema:
+The canonical envelope follows ADR-002. The first-slice specification fixes concrete limits and the USGS mapping:
 
 | Field/concept | Meaning |
 | --- | --- |
 | Contract version | One supported version initially; unsupported input is rejected, not guessed. |
 | Source key | Stable configured provider identity, separate from event type. Demo sources use a reserved namespace. |
-| External event identifier | Nonempty stable identifier within that source. Source plus external identifier is unique. |
+| External event identifier | Nonempty selected provider ID; source plus external ID is unique. USGS preferred IDs may change, so this is not physical-earthquake identity. |
 | Event type | Initially earthquake. A redundant category hierarchy is unnecessary for one type. |
 | Occurrence time | Required timestamp with an explicit UTC interpretation. |
 | Title | Required bounded plain-text display title. A summary is optional; exact size bounds are input-contract configuration before implementation. |
@@ -81,27 +80,38 @@ Reject malformed or unsupported input before accepting an event; missing magnitu
 
 Separate provider normalization from event semantics. Another earthquake provider maps to the same canonical type and condition. A new type declares its validated fields and allowed comparisons. A new business meaning, such as price movement over a time window, may need additional code/query logic. There is no arbitrary JSONPath, nested boolean language, or configuration-only promise for future domains. [ADR-002](adr/ADR-002-canonical-events-and-typed-alert-conditions.md) retains the extension rationale; ADR-005 replaces its original runtime ownership.
 
-**Planning assumption for event updates:** retain the first valid accepted snapshot for a source/external identifier. Repeated polling, including changed provider content under that identifier, does not create a second event or re-evaluate a completed one. This follows the user's new-event flow and deliberately defers provider correction/retraction semantics. It can miss a later magnitude correction crossing the threshold; disclose this limitation in the demo and revisit before use where revisions matter. Different providers reporting the same occurrence are not cross-source deduplicated.
+**Accepted first-snapshot behavior:** retain the first valid accepted snapshot for a source/external identifier. Repeated polling, including changed provider content under that identifier, does not create a second event or re-evaluate a completed one. This follows the user's new-event flow and deliberately defers provider correction/retraction semantics. It can miss a later magnitude correction crossing the threshold; disclose this limitation in the demo and revisit before use where revisions matter. Different providers reporting the same occurrence are not cross-source deduplicated.
 
-**Rule timing assumption:** evaluate the enabled rules visible in the atomic evaluation operation. A rule created/edited before a pending event is evaluated can affect that event; completed events are not retrospectively matched. The first source poll may include events already present in the provider's bounded feed window. No additional archive/backfill is requested. Providers and polling windows must be chosen with that behavior visible, not presented as a real-time completeness guarantee.
-
+**Rule timing:** each evaluation attempt reads joined enabled-alert/user configuration in one statement snapshot. Replays and overlapping attempts can read later configuration and accumulate unique intents from those reads; event-wide atomic configuration consistency is not promised. A committed intent remains after later alert disable and retains its original destination. Completed events are not rematched. The first USGS poll accepts the current one-hour feed without archive/backfill or a cursor. No intent is automatically sent.
 ## Three recoverable workflow responsibilities
 
 ### 1. Ingest events
 
-Schedule → fetch source → normalize/validate → insert a unique Pending event if absent. A duplicate may be skipped by this ingestion step, but event completion is not inferred from its existence. Invalid events are reported through workflow failure visibility. A source outage fails ingestion observably without preventing the other scheduled responsibilities from running. Poll frequency/window and any source cursor are adapter configuration selected with the provider; repeated results are safe.
+Manual live entry → fetch the public [USGS all-hour GeoJSON feed](https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson) → normalize/validate → insert unique Pending events. An explicit manual fixture entry uses a reserved `demo.usgs` source and the same normalizer. A future five-minute schedule must enter only the live branch; it is not activated in this milestone.
+
+`UNIQUE(source, external_id)` and `ON CONFLICT DO NOTHING` retain the first snapshot. An existing Pending event remains available to evaluation. Malformed individual records produce diagnostic skips while valid records survive; malformed top-level data and source/database failures fail visibly. USGS documents that preferred IDs may change. Alias-aware resolution was investigated and deliberately deferred; repeated observations of an unchanged ID are deduplicated, but provider renaming can create another event. Source updates under the same ID do not change magnitude or trigger rematching.
 
 ### 2. Evaluate pending events
 
-Independently scan Pending events, including records left by earlier failed executions. For each event, lock/conditionally acquire its unfinished row and execute the supported condition evaluation, insert the required unique delivery intents, and mark the event Evaluated in **one PostgreSQL transaction within one n8n database operation**. A non-match is also a completed evaluation. A failure rolls back the complete operation and leaves the event pending for a later run.
+Each manual invocation obtains one Pending event and a joined snapshot of relevant enabled alerts and their shared owner destinations, across all owners. The application’s `MvpOwner:Id` does not participate. The query preserves one event envelope with an empty alert list when nothing is enabled.
 
-For this small rule set, execute deterministic matching and intent insertion as parameterized SQL owned by the workflow, using the documented allowlist of typed comparisons. Evaluate rules from one consistent statement snapshot; do not assemble matches from unrelated per-alert reads across nodes. This avoids a separate application matcher and the crash gap between per-alert inserts and an eventual completion marker. The concrete query and query-batching behavior must be verified against real PostgreSQL/n8n during implementation.
+A focused n8n Code node interprets only textual `earthquake`, `magnitude`, `gte`, `number` and finite numeric values. It evaluates magnitude greater than or equal to threshold; unknown or malformed configuration produces no match and a safe diagnostic. PostgreSQL does not evaluate the condition.
 
-A uniqueness constraint on event, alert, and channel prevents repeated intent creation. Each delivery snapshots the relevant event display data, matched condition, destination, and logical transport profile. No further message broker or separate match table is required: the delivery records identify matched alerts, and Evaluated with no deliveries explains a non-match. SQL uses only supported fields/operators, never user-supplied query fragments.
+A parameterized intent insert uses `UNIQUE(source_event_id, alert_id, channel)` and snapshots the destination. It returns a completion summary even for zero matches. Only after successful persistence does a separate statement mark the event Evaluated. Failure leaves Pending available for replay; previously committed intents are retained without duplication. This is intentionally simpler than an atomic SQL matcher and does not provide an event-wide immutable rule snapshot across replays. No external send occurs inside evaluation.
 
-The [n8n Postgres node documentation](https://github.com/n8n-io/n8n-docs/blob/main/docs/integrations/builtin/app-nodes/n8n-nodes-base.postgres/README.md) documents parameterized queries and transactional batching. That capability does not make a multi-node workflow atomic. This design requires the entire evaluation completion boundary to be one verified operation.
+### 3. Deliver one selected Slack intent
 
-### 3. Deliver pending notifications
+A manual entry requires one explicit UUID; empty/invalid input fails before access or send. A conditional update claims only that `pending` Slack intent as `processing`. Missing, already claimed, sent, failed and email intents cannot pass the claim gate. There is no automatic pending-delivery scan.
+
+The message uses immutable canonical event data and domain IDs, with a synthetic marker where applicable; the destination comes from the intent snapshot and credentials from n8n. Disable native send retries. One accepted Slack response may be recorded as `sent`; this proves provider acceptance, not human receipt. A known rejection is `failed` with a bounded diagnostic code. An uncertain network result or a crash after Slack acceptance leaves `processing`, possibly with an outcome-unknown code, and is not automatically retried. `unsupported` email intent is visible and never selected for Slack.
+
+There is no exactly-once external delivery guarantee. Start any re-execution at the explicit-ID claim entry, never replay a saved Slack node with its old inputs. Do not manually reset an ambiguous record without investigation. A future retry policy must explicitly handle uncertainty and possible duplicates.
+
+## Deferred delivery/reliability architecture — milestone 6
+
+The remaining sections retain the accepted broader delivery direction from ADR-005. They are design inputs for a separately reviewed milestone-6 plan; no attempt, token/lease, circuit, backoff or automatic recovery state is introduced in milestone 5.
+
+### Deliver pending notifications in the later milestone
 
 Independently schedule due Pending notifications. n8n reads and updates its operational delivery/circuit records directly in the product database; no application authorization, HTTP claim/callback, retry code, or circuit code participates.
 
@@ -160,7 +170,7 @@ Retain product events, attempts, and delivery identity for the demo until an exp
 
 Connection-string values are absent from tracked files, including examples, migrations/helpers, prompts, logs, and exports. Application runtime and EF tooling use User Secrets locally. The requested application-only Docker option loads runtime settings from an ignored `.env`; shared PostgreSQL/n8n remain external. Future n8n product-database and notification credentials use its credential store; internal-storage credentials are outside this repository's scope. In the skeleton, missing or invalid product-database settings leave the shell and liveness running while readiness reports Unhealthy. Missing settings produce a startup warning naming the key; connection failures use sanitized health descriptions. There is no embedded fallback or secret-bearing diagnostic.
 
-Provider selection, usable stable IDs and feed window, polling quotas, sender/workspace setup, transport error mapping, and compatible supported versions must be verified in their implementation milestones. The DEV service topology is selected under ADR-006. The skeleton specification pins compatible application packages; [the validation record](../evidence/reviews/2026-09-14-skeleton-review.md) distinguishes actual MCP connectivity from application readiness. No event provider, notification account, or executable product workflow is selected or configured here. Before implementation, review the explicit first-snapshot/update and current-rule timing assumptions against the intended demo.
+Provider selection, usable stable IDs and feed window, polling quotas, sender/workspace setup, transport error mapping, and compatible supported versions must be verified in their implementation milestones. The DEV service topology is selected under ADR-006. The skeleton specification pins compatible application packages; [the validation record](../evidence/reviews/2026-09-14-skeleton-review.md) distinguishes actual MCP connectivity from application readiness. USGS is selected for the first slice. Runtime credential binding, actual execution and authorized Slack validation are tracked in milestone evidence; selection alone is not a connectivity or delivery claim.
 
 ## Implemented configuration boundary
 

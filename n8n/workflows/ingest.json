@@ -1,0 +1,268 @@
+{
+  "name": "Sonrisa - Ingest Earthquakes - DEV",
+  "description": "Manual USGS all-hour ingestion with explicit synthetic input, shared canonical normalization and durable source-ID deduplication. No schedule or notification send.",
+  "active": false,
+  "nodes": [
+    {
+      "id": "8b218e01-b2c1-4207-828a-c3ac6bd9e3cd",
+      "name": "Manual ingest",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        80
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "82ac2d0e-bc3c-4bc0-a997-3f16570f6d0d",
+      "name": "Operator ingest input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        224,
+        80
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "mode",
+              "name": "mode",
+              "value": "live",
+              "type": "string"
+            },
+            {
+              "id": "fixture-json",
+              "name": "fixture_json",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "6f1e4091-4d80-4578-a58f-af7a4cde0df7",
+      "name": "Select trusted ingest path",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        80
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const input = $input.first().json;\nif (input.mode === 'live' && input.fixture_json === '') {\n  return [{ json: { mode: 'live' } }];\n}\nif (input.mode !== 'fixture') {\n  throw new Error('invalid_ingest_mode');\n}\nif (typeof input.fixture_json !== 'string' || input.fixture_json.length === 0 || input.fixture_json.length > 2097152) throw new Error('invalid_fixture_feed');\nlet feed;\ntry {\n  feed = JSON.parse(input.fixture_json);\n} catch {\n  throw new Error('invalid_fixture_feed');\n}\nreturn [{ json: { mode: 'fixture', source: 'demo.usgs', feed } }];\n"
+      }
+    },
+    {
+      "id": "ca2209fe-61ab-42eb-9a72-e641d325cdad",
+      "name": "Live USGS input?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        672,
+        80
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.mode }}",
+              "rightValue": "live",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "65db8c36-596c-4597-aad5-8bc81ec67957",
+      "name": "Fetch USGS all-hour feed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        896,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_hour.geojson",
+        "authentication": "none",
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "b23133c6-196c-46e2-8408-7dc9dae88d06",
+      "name": "Mark live USGS source",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1120,
+        0
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "live-source",
+              "name": "source",
+              "value": "usgs",
+              "type": "string"
+            },
+            {
+              "id": "live-feed",
+              "name": "feed",
+              "value": "={{ $json }}",
+              "type": "object"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "f011770d-7c9a-49ef-bb3d-071024963d6e",
+      "name": "Normalize earthquake records",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        80
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const input = $input.first().json;\nif ((input.source !== 'usgs' && input.source !== 'demo.usgs') || !input.feed || input.feed.type !== 'FeatureCollection' || !Array.isArray(input.feed.features)) {\n  throw new Error('invalid_feed');\n}\nconst features = input.feed.features;\nif (features.length > 1000) throw new Error('feed_too_many_features');\nlet size;\ntry {\n  size = encodeURIComponent(JSON.stringify(input.feed)).replace(/%[0-9A-F]{2}/gi, 'x').length;\n} catch {\n  throw new Error('invalid_feed');\n}\nif (size > 2097152) throw new Error('feed_too_large');\nconst events = [];\nconst diagnostics = [];\nfor (const feature of features) {\n  const id = feature && feature.id;\n  const safeId = typeof id === 'string' && /^[!-~]{1,128}$/.test(id) ? id : null;\n  if (!safeId) {\n    diagnostics.push({ code: 'invalid_external_id' });\n    continue;\n  }\n  const properties = feature && feature.properties;\n  if (feature.type !== 'Feature' || !properties || properties.type !== 'earthquake') {\n    diagnostics.push({ code: 'unsupported_feature', external_id: safeId });\n    continue;\n  }\n  const mag = properties && properties.mag;\n  if (typeof mag !== 'number' || !Number.isFinite(mag)) {\n    diagnostics.push({ code: 'invalid_magnitude', external_id: safeId });\n    continue;\n  }\n  const ms = properties.time;\n  if (typeof ms !== 'number' || !Number.isFinite(ms) || !Number.isInteger(ms) || ms < -62135596800000 || ms > 253402300799999) {\n    diagnostics.push({ code: 'invalid_occurrence', external_id: safeId });\n    continue;\n  }\n  const occurred = new Date(ms).toISOString();\n  const place = typeof properties.place === 'string' ? properties.place.replace(/[\\x00-\\x1f\\x7f-\\x9f]/g, ' ').trim().slice(0, 200) : '';\n  const fallback = place ? `M ${mag} - ${place}` : `M ${mag} - Earthquake`;\n  const rawTitle = typeof properties.title === 'string' && properties.title.trim() ? properties.title : fallback;\n  const title = rawTitle.replace(/[\\x00-\\x1f\\x7f-\\x9f]/g, ' ').trim().slice(0, 300).trim() || 'Earthquake';\n  let url = null;\n  if (typeof properties.url === 'string' && properties.url.length <= 2048 && /^https?:\\/\\/[^\\s\\x00-\\x1f\\x7f-\\x9f]+$/.test(properties.url)) {\n    const authority = /^https?:\\/\\/([^\\/?#]+)/.exec(properties.url)?.[1];\n    if (authority && /^[A-Za-z0-9.-]+(?::[0-9]{1,5})?$/.test(authority)) url = properties.url;\n  }\n  events.push({ contract_version: 1, source: input.source, external_id: safeId, event_type: 'earthquake', occurred_at: occurred, title, source_url: url, data: { magnitude: mag } });\n}\nreturn [{ json: { events, diagnostics } }];\n"
+      }
+    },
+    {
+      "id": "08a5953e-0e11-4a24-9ccd-7bf61d66110e",
+      "name": "Insert new source events",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1568,
+        80
+      ],
+      "parameters": {
+        "resource": "database",
+        "operation": "executeQuery",
+        "query": "WITH inserted AS (\n    INSERT INTO public.source_events\n        (contract_version, source, external_id, event_type, occurred_at, title, source_url, data)\n    SELECT x.contract_version, x.source, x.external_id, x.event_type,\n           x.occurred_at, x.title, x.source_url, x.data\n    FROM jsonb_to_recordset($1::jsonb) AS x(\n        contract_version integer, source text, external_id text, event_type text,\n        occurred_at timestamptz, title text, source_url text, data jsonb)\n    ON CONFLICT (source, external_id) DO NOTHING\n    RETURNING id\n)\nSELECT count(*)::integer AS inserted_count FROM inserted;\n",
+        "options": {
+          "queryReplacement": "={{ JSON.stringify($json.events) }}"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Manual ingest": {
+      "main": [
+        [
+          {
+            "node": "Operator ingest input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Operator ingest input": {
+      "main": [
+        [
+          {
+            "node": "Select trusted ingest path",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select trusted ingest path": {
+      "main": [
+        [
+          {
+            "node": "Live USGS input?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live USGS input?": {
+      "main": [
+        [
+          {
+            "node": "Fetch USGS all-hour feed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Normalize earthquake records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch USGS all-hour feed": {
+      "main": [
+        [
+          {
+            "node": "Mark live USGS source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark live USGS source": {
+      "main": [
+        [
+          {
+            "node": "Normalize earthquake records",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize earthquake records": {
+      "main": [
+        [
+          {
+            "node": "Insert new source events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

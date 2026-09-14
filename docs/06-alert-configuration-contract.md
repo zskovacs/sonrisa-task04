@@ -31,7 +31,7 @@ ORDER BY a.id;
 
 This returns one row per alert with one or both shared destinations. It is a documented contract, not an implemented workflow/evaluator. The future delivery-intent operation expands nonnull destinations into the selected channel intents. The application reads only its current owner's records; a future product evaluator may intentionally read enabled alerts across owners using its separately scoped credential.
 
-One PostgreSQL statement sees one consistent committed snapshot. Do not combine unrelated configuration reads across n8n nodes and assume they share a snapshot. The later event-evaluation/intent SQL must preserve ADR-005's atomic completion boundary. Sharing durable PostgreSQL state does not propagate a synchronous trace context between application and n8n.
+One PostgreSQL statement sees one consistent committed snapshot. Do not combine unrelated configuration reads across n8n nodes and assume they share a snapshot. [ADR-011](adr/ADR-011-use-n8n-evaluation-and-replay-safe-runtime-writes.md) replaces the earlier atomic SQL matcher. n8n evaluates this joined snapshot and separately persists idempotent intents before completing the event. Replays may read changed configuration; existing intent destinations remain unchanged. Sharing durable PostgreSQL state does not propagate a synchronous trace context between application and n8n.
 
 ## Writes, concurrency and lifecycle
 

@@ -1,0 +1,379 @@
+{
+  "name": "Sonrisa - Deliver Slack Notification - DEV",
+  "description": "Manual Slack delivery for one explicitly selected pending intent. Conditional claim, one send, durable result; ambiguous outcomes remain unresolved. No queue draining, automatic retry, email or schedule.",
+  "active": false,
+  "nodes": [
+    {
+      "id": "41bcd5e3-ffc1-4890-af18-c73e1630a231",
+      "name": "Manual selected delivery",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        144
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "3666b96c-672f-44cf-8d23-c90dee248d87",
+      "name": "Operator delivery ID",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        224,
+        144
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "delivery-id",
+              "name": "delivery_id",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "8f483206-6e6e-48e4-9abc-b98cd008b92d",
+      "name": "Require explicit delivery UUID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        144
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const value = $input.first().json.delivery_id;\nif (typeof value !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value) || /^0{8}-0{4}-0{4}-0{4}-0{12}$/i.test(value)) {\n  throw new Error('invalid_delivery_id');\n}\nreturn [{ json: { delivery_id: value.toLowerCase() } }];\n"
+      }
+    },
+    {
+      "id": "3e2a9154-a3aa-45bf-93cc-ee6b56afaf45",
+      "name": "Claim one pending Slack delivery",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        672,
+        144
+      ],
+      "parameters": {
+        "resource": "database",
+        "operation": "executeQuery",
+        "query": "WITH claimed AS (\n    UPDATE public.notification_deliveries\n    SET status = 'processing', last_error = NULL\n    WHERE id = $1::uuid AND channel = 'slack' AND status = 'pending'\n    RETURNING id, source_event_id, alert_id, destination\n)\nSELECT id, source_event_id, alert_id, destination\nFROM claimed;\n",
+        "options": {
+          "queryReplacement": "={{ $json.delivery_id }}"
+        }
+      }
+    },
+    {
+      "id": "350070b2-4e27-43b4-820e-72deae6badf0",
+      "name": "Read immutable event message",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        896,
+        144
+      ],
+      "parameters": {
+        "resource": "database",
+        "operation": "executeQuery",
+        "query": "SELECT d.id, d.source_event_id, d.alert_id, d.destination,\n       e.source, e.external_id, e.title, e.occurred_at, e.data\nFROM public.notification_deliveries AS d\nJOIN public.source_events AS e ON e.id = d.source_event_id\nWHERE d.id = $1::uuid AND d.channel = 'slack' AND d.status = 'processing';\n",
+        "options": {
+          "queryReplacement": "={{ $json.id }}"
+        }
+      }
+    },
+    {
+      "id": "7fa3311a-58f7-4861-aed7-f8c39ed62e85",
+      "name": "Prepare safe Slack text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        144
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const row = $input.first().json;\nif (!row || typeof row.id !== 'string' || typeof row.title !== 'string' || typeof row.destination !== 'string' || typeof row.data?.magnitude !== 'number' || !Number.isFinite(row.data.magnitude)) {\n  throw new Error('invalid_claimed_delivery');\n}\nconst escape = value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst synthetic = row.source === 'demo.usgs' ? '[SYNTHETIC] ' : '';\nconst text = `${synthetic}Earthquake M ${row.data.magnitude}: ${escape(row.title)}\\nOccurred: ${escape(row.occurred_at)}\\nSource: ${escape(row.source)}\\nEvent: ${escape(row.source_event_id)}\\nAlert: ${escape(row.alert_id)}\\nDelivery: ${escape(row.id)}`;\nreturn [{ json: { id: row.id, destination: row.destination, text } }];\n"
+      }
+    },
+    {
+      "id": "3583b87f-8105-4fc9-9733-66cf02bd1f40",
+      "name": "Send selected Slack notification",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.7,
+      "position": [
+        1344,
+        144
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "authentication": "accessToken",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.destination }}"
+        },
+        "messageType": "text",
+        "text": "={{ $json.text }}",
+        "otherOptions": {
+          "includeLinkToWorkflow": false,
+          "mrkdwn": false,
+          "link_names": false,
+          "unfurl_links": false,
+          "unfurl_media": false
+        }
+      },
+      "onError": "continueErrorOutput",
+      "maxTries": 1
+    },
+    {
+      "id": "53a0db7c-18f4-4190-84cc-8ff5d585879f",
+      "name": "Slack acknowledged send?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1568,
+        48
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.ok === true }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "1db13fbd-cb33-4550-a392-1e0a453eff55",
+      "name": "Record acknowledged Slack send",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1792,
+        0
+      ],
+      "parameters": {
+        "resource": "database",
+        "operation": "executeQuery",
+        "query": "UPDATE public.notification_deliveries\nSET status = 'sent', sent_at = now(), last_error = NULL\nWHERE id = $1::uuid AND channel = 'slack' AND status = 'processing'\nRETURNING id;\n",
+        "options": {
+          "queryReplacement": "={{ $(\"Prepare safe Slack text\").first().json.id }}"
+        }
+      }
+    },
+    {
+      "id": "27da04a8-7bc2-4cdf-8c48-6c49eab63b46",
+      "name": "Record ambiguous Slack outcome",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1792,
+        192
+      ],
+      "parameters": {
+        "resource": "database",
+        "operation": "executeQuery",
+        "query": "UPDATE public.notification_deliveries\nSET last_error = 'delivery_outcome_unknown'\nWHERE id = $1::uuid AND channel = 'slack' AND status = 'processing'\nRETURNING id;\n",
+        "options": {
+          "queryReplacement": "={{ $(\"Prepare safe Slack text\").first().json.id }}"
+        }
+      }
+    },
+    {
+      "id": "4b04850d-3363-4977-8a4b-c04b5d5e5741",
+      "name": "Known Slack rejection?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1568,
+        384
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ (() => { const error = $json.error; const codes = [\"channel_not_found\", \"not_in_channel\", \"invalid_auth\", \"is_archived\", \"account_inactive\", \"missing_scope\"]; return typeof error === \"string\" ? error === \"Your Slack credential is missing required Oauth Scopes\" || codes.some(code => error === \"Slack error response: \" + JSON.stringify(code)) : codes.includes(error?.code); })() }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "42c5c0ca-232c-4827-ad02-3ce77f9e5247",
+      "name": "Record known Slack rejection",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1792,
+        384
+      ],
+      "parameters": {
+        "resource": "database",
+        "operation": "executeQuery",
+        "query": "UPDATE public.notification_deliveries\nSET status = 'failed', last_error = 'slack_rejected'\nWHERE id = $1::uuid AND channel = 'slack' AND status = 'processing'\nRETURNING id;\n",
+        "options": {
+          "queryReplacement": "={{ $(\"Prepare safe Slack text\").first().json.id }}"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Operator delivery ID": {
+      "main": [
+        [
+          {
+            "node": "Require explicit delivery UUID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Require explicit delivery UUID": {
+      "main": [
+        [
+          {
+            "node": "Claim one pending Slack delivery",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim one pending Slack delivery": {
+      "main": [
+        [
+          {
+            "node": "Read immutable event message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read immutable event message": {
+      "main": [
+        [
+          {
+            "node": "Prepare safe Slack text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare safe Slack text": {
+      "main": [
+        [
+          {
+            "node": "Send selected Slack notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send selected Slack notification": {
+      "main": [
+        [
+          {
+            "node": "Slack acknowledged send?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Known Slack rejection?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack acknowledged send?": {
+      "main": [
+        [
+          {
+            "node": "Record acknowledged Slack send",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record ambiguous Slack outcome",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Known Slack rejection?": {
+      "main": [
+        [
+          {
+            "node": "Record known Slack rejection",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Record ambiguous Slack outcome",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual selected delivery": {
+      "main": [
+        [
+          {
+            "node": "Operator delivery ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

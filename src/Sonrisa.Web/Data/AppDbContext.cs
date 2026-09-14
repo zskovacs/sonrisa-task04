@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Sonrisa.Web.Alerts;
+using Sonrisa.Web.Runtime;
 using Sonrisa.Web.Users;
 
 namespace Sonrisa.Web.Data;
@@ -12,6 +13,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public DbSet<Alert> Alerts => Set<Alert>();
     public DbSet<UserNotificationSettings> Users => Set<UserNotificationSettings>();
+    public DbSet<SourceEvent> SourceEvents => Set<SourceEvent>();
+    public DbSet<NotificationDelivery> NotificationDeliveries => Set<NotificationDelivery>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -54,5 +57,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             entity.Property(u => u.SlackDestination).HasColumnName("slack_destination").HasMaxLength(80);
             entity.Property(u => u.Revision).HasColumnName("revision").HasColumnType("uuid").IsConcurrencyToken();
         });
+
+        modelBuilder.ConfigureRuntimeModel();
     }
 }
