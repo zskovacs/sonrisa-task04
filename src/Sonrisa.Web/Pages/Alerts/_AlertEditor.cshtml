@@ -1,0 +1,17 @@
+@model Sonrisa.Web.Pages.Alerts.AlertEditorModel
+<form class="mt-6 max-w-2xl space-y-6 rounded border border-slate-200 bg-white p-6" method="post">
+    <div asp-validation-summary="ModelOnly" class="text-sm text-red-700" role="alert"></div>
+    <fieldset class="space-y-4">
+        <legend class="text-lg font-semibold">General settings</legend>
+        <div><label class="block font-medium" asp-for="Input.Name">Alert name</label><input class="mt-1 w-full rounded border border-slate-400 px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600" asp-for="Input.Name" /><span asp-validation-for="Input.Name" class="text-sm text-red-700"></span></div>
+        <div><label class="block font-medium" asp-for="Input.Enabled">Enabled</label><input class="mt-1 size-4 rounded border-slate-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600" asp-for="Input.Enabled" /><p class="text-sm text-slate-700">Enabled alerts are eligible for future processing.</p><span asp-validation-for="Input.Enabled" class="text-sm text-red-700"></span></div>
+    </fieldset>
+    <fieldset class="space-y-4">
+        <legend class="text-lg font-semibold">Condition</legend>
+        <p class="text-slate-700">Earthquake magnitude is greater than or equal to the numeric threshold.</p>
+        <div><label class="block font-medium" asp-for="Input.Threshold">Magnitude threshold</label><input class="mt-1 w-full rounded border border-slate-400 px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600" asp-for="Input.Threshold" inputmode="decimal" /><span asp-validation-for="Input.Threshold" class="text-sm text-red-700"></span></div>
+    </fieldset>
+    <p class="text-slate-700">All your alerts use the destinations in <a class="text-sky-800 underline" asp-page="/Settings/Notifications">notification settings</a>. Save at least one destination there before creating an alert.</p>
+    <input type="hidden" asp-for="Input.Revision" />
+    <div class="flex gap-3"><button class="rounded bg-sky-700 px-4 py-2 font-semibold text-white hover:bg-sky-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600" type="submit">Save alert</button><a class="rounded border border-slate-400 px-4 py-2 font-semibold hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600" asp-page="Index">Cancel</a></div>
+</form>

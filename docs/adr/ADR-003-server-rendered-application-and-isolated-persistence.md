@@ -6,6 +6,8 @@
 
 **DEV topology amendment:** [ADR-006](ADR-006-use-existing-shared-dev-infrastructure.md) supersedes the local-service topology and the requirement for this repository to create/manage two databases, including n8n internal persistence. Use the existing shared DEV services; only product persistence is in application scope. The original topology below is retained as history. Razor Pages, EF Core product migrations, and external secrets remain accepted.
 
+**MVP ownership amendment:** [ADR-008](ADR-008-use-single-configured-mvp-owner.md) supersedes the earlier demo identity/role-selection assumption. Use one configured owner and owner-scoped management without authentication or authorization infrastructure. Other current decisions remain unchanged.
+
 ## Context
 
 **Milestone 2 ownership amendment (historical):** [ADR-005](ADR-005-direct-database-integration-and-workflow-owned-delivery.md) replaced the HTTP integration and exclusive application access to the product database below. At that point, Razor Pages, two separate databases, EF Core migrations, and external secret configuration were retained, and n8n received a separate product-access credential in the design. ADR-006 subsequently superseded the two-database provisioning and internal-persistence scope; the other retained choices remain current.

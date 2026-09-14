@@ -99,3 +99,60 @@ The first generated `.dockerignore` admitted local `bin/obj` files. The first im
 The real connection passed host and container readiness. A separate read-only audit of the host session then found superuser privileges and no PostgreSQL TLS. Treating `Healthy` as final access/security acceptance would have hidden an ADR-006 boundary violation. Readiness intentionally proves connectivity only; the runtime code needs no change for this result. Final acceptance now requires a restricted application credential and verified secure transport, without the agent altering shared infrastructure. An external encrypted tunnel has not been established or ruled out by the PostgreSQL TLS result. See [the actual query and sanitized results](../evidence/reviews/2026-09-14-skeleton-review.md).
 
 Subsequent user clarification explicitly accepted the observed administrative credential and lack of PostgreSQL TLS for current DEV usage. [ADR-007](adr/ADR-007-accept-current-dev-database-access.md) records this deployment-specific exception and removes the milestone blocker. The audit facts and production requirements remain unchanged; do not treat an accepted DEV limitation as a new failed check or as production-security validation.
+
+## 2026-09-14: Reconcile the configuration milestone with accepted scope
+
+- Context: milestone 4 brainstorming under [prompt 019](../prompts/019-alert-configuration-model-and-management-ui.md), before feature design or implementation.
+- Finding: repository inspection exposed conflicts between the task's candidate multi-condition model, the existing demo identity selector, and the runtime-before-management sequence. The controller stopped and reported them as the task required.
+- User correction: do not treat the clarification as blanket permission to supersede architecture. Retain ADR-002's one-condition MVP and reject the multiple-condition/AND expansion. Separately replace demo identity switching with one configured owner and move persisted configuration before runtime consumption.
+- Disposition: [ADR-008](adr/ADR-008-use-single-configured-mvp-owner.md) narrowly supersedes the identity assumption; D-004 records the deliberate nine-milestone sequence; D-005 reaffirms the smaller condition scope. No multiple-condition model or fake identity behavior was implemented. The broader model was a user-supplied candidate, not an implemented or independently validated AI solution.
+- Validation basis: inspected ADR-002/003/005, the active scope/architecture/plan, and Git history (`4fca2f1`, `b68e3ad`, `5880801`). The user explicitly resolved the conflicts. Detailed feature design still awaits approval; documentation amendments do not validate runtime behavior.
+
+## 2026-09-14: Database trace defaults bypass existing log privacy filters
+
+- Context: milestone 4 observability design, before package installation or implementation.
+- Candidate assessed: enable automatic Npgsql traces alongside the existing provider-log suppression.
+- Finding: the stable 10.0.3 provider's versioned source records SQL text and raw exception data in activities. Suppressing Npgsql/EF connection log categories does not suppress or sanitize those activities. Its official tracing guide also retains an experimental-compatibility caveat.
+- Disposition: recommend request traces and sanitized correlated application failure logs first; defer database spans rather than add a custom telemetry-redaction subsystem for this MVP. This recommendation awaits feature-design approval. A stable compatible tracing package exists; it is not rejected as preview-only or incompatible.
+- Evidence: [context/source review](../evidence/reviews/2026-09-14-alert-configuration-context-review.md). No telemetry was emitted or inspected at runtime in this phase, and no secret exposure is claimed.
+
+## 2026-09-14: Configuration validation and tooling required concrete failure checks
+
+- Context: approved milestone 4 persistence implementation.
+- Findings: initial destination validation accepted trailing LF because regex end anchors permitted it, and trimming could normalize newline-only destination input. A malformed connection string raised ArgumentException instead of the intended safe unavailable result. The first design-time factory required a command-line connection; its replacement initially gave User Secrets precedence over a controller-supplied environment target.
+- Corrections: strict destination anchors and pre-normalization newline rejection; bounded connection parsing with sanitized failure classification; external design-time connection discovery with environment overriding User Secrets and no connection fallback. Explicit EF Core/Relational patch references resolved an observed mixed-version assembly conflict.
+- Validation: targeted red/green cases and local build passed; the controller applied the reviewed migration through an environment-supplied, independently verified target. The initial PostgreSQL-enabled suite passed 36 tests. The reviewer approved the task with one redundant tracker-clear cleanup. See [actual milestone evidence](../evidence/reviews/2026-09-14-alert-configuration-validation.md).
+- Limit: these results do not establish browser behavior or observability privacy; those require their own checks.
+
+## 2026-09-14: Browser validation exposed Razor boolean attribute semantics
+
+- Context: milestone 4 management UI after its focused task review.
+- Finding: actual rendered HTML used `value="value"` for the hidden boolean desired state, preventing Enable from binding. The existing route/form tests did not cover rendered status transitions. Separate malformed checkbox input also demonstrated that model-binding errors must be handled before calling the service.
+- Correction: render explicit string `true`/`false` values; reject invalid editor/status binding and display safe reload guidance for revision conversion failures. Remove a proposed boolean-conversion helper/test that merely mirrored implementation and did not exercise Razor rendering.
+- Validation: seven focused HTTP tests passed; scoped fix review approved; actual Chromium create/edit/Enable/Disable and independent HTTP ownership/antiforgery/stale-edit checks passed. A guarded PostgreSQL HTTP regression exercises the rendered status form. See [evidence](../evidence/reviews/2026-09-14-alert-configuration-validation.md) for executed checks and pending test status.
+
+## 2026-09-14: Combined validation revealed telemetry test configuration leakage
+
+- Context: final milestone suite with real PostgreSQL explicitly enabled.
+- Finding: nine telemetry checks inherited the runtime connection and observed healthy management responses instead of their deliberately unavailable database fixture. The same host-startup timing had earlier made late in-memory test configuration ineffective. Focused tests alone did not reveal the inherited-environment case.
+- Correction: isolate and restore database/owner environment settings alongside telemetry settings in the nonparallel fixture; retain real SDK/receiver assertions. The PostgreSQL HTTP fixture replaces only external settings and database options while preserving real management/EF/Razor behavior.
+- Validation: an inherited invalid-connection focused run passed eleven telemetry tests; scoped review approved; the full guarded suite passed all 56 tests without skips. No production configuration behavior was changed. See [evidence](../evidence/reviews/2026-09-14-alert-configuration-validation.md).
+
+## 2026-09-14: User correction replaced destination ownership and custom validation
+
+- Context: before the milestone commit, the user rejected externally configured destination allowlists and requested an existing validation framework. They explicitly selected shared destinations per user rather than per-alert subscription targets.
+- Correction: ADR-010 supersedes that part of the initial design. A minimal PostgreSQL users profile stores common email/Slack destinations; alerts reference its existing ownership UUID. Remove per-alert target fields and allowlists; add an actual settings page, without Identity/authentication. Use FluentValidation 12.1.1 core, whose official package declares Apache-2.0 licensing and net8.0-or-later compatibility.
+- Scope: preserve the one-condition limit, current-owner scoping, telemetry and workflow ownership. Do not rewrite the applied initial migration; review a new migration that preserves unambiguous values and refuses ambiguous conversion.
+- Evidence status: the earlier56-test/browser/container results validate the previous design only. Revised-model implementation and acceptance are recorded separately; no commit had been created when the correction arrived.
+
+### Shared-destination migration preflight
+
+The independent amendment review identified that pooling different channel subsets could expand delivery targets, a write during backfill could lose configuration, and a generated downgrade could discard profile-only settings. The specification/plan now require identical complete old target sets per owner, transaction-scoped exclusive table locks before checks/transfer, and a fail-fast unsupported downgrade. Scoped re-review approved these rules; generated migration source/SQL and actual PostgreSQL behavior remain separate validation gates. See [the amendment evidence](../evidence/reviews/2026-09-14-alert-configuration-validation.md#shared-user-destinations-amendment).
+
+### Shared settings implementation and fixture correction
+
+The controller rejected a first validator draft that merely wrapped custom field validation in FluentValidation Must predicates; ordinary name/length/email/Slack checks now use framework rules, retaining only necessary cross-field, finite-number and platform-mailbox/control checks. A settings success response retaining the submitted ModelState would render a stale hidden revision; POST-redirect-GET and a consecutive rendered-save test corrected that before acceptance. The first full DEV-enabled revised run exposed a test host inheriting the runtime database connection (64 passed, one failed). Replacing typed DbContext options in the isolated HTTP fixture corrected that boundary, and scoped review approved it. The final full suite passed 65/65. These corrections and the actual PostgreSQL/browser/container results are in [the amendment evidence](../evidence/reviews/2026-09-14-alert-configuration-validation.md#shared-user-destinations-amendment).
+
+### Database whitespace contract correction
+
+The final branch reviewer found that PostgreSQL btrim without a character set removes ordinary spaces but leaves tabs, allowing whitespace-only alert names and sole email destinations through direct writes despite the documented nonblank checks. Read-only SQL reproduced the issue; it also showed that the database locale’s POSIX whitespace class does not recognize nonbreaking space. The correction uses an explicit Unicode trim set matching .NET, a forward constraint-only migration preserving both applied migrations, and guarded direct-write regression checks. The architecture diagram’s unsupported “secure DEV connection” label was also changed to neutral wording consistent with ADR-007. The forward migration was applied after review, both regression tests changed from expected failure to passing, and the final guarded suite passed 67/67, as recorded in [evidence](../evidence/reviews/2026-09-14-alert-configuration-validation.md).

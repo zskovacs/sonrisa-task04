@@ -4,22 +4,24 @@ The original [brief](00-product-brief.md) establishes alerts, email, Slack, exte
 
 ## Current milestone
 
-Milestone 2 completed the architecture baseline at `b68e3ad`. Milestone 3 implements the minimal application skeleton and its safe integration with existing DEV infrastructure, following [the current request](../prompts/010-create-application-skeleton.md) and [ADR-006](adr/ADR-006-use-existing-shared-dev-infrastructure.md). The user approved the [bounded skeleton specification](superpowers/specs/2026-09-14-application-skeleton-design.md); its [implementation plan](superpowers/plans/2026-09-14-application-skeleton.md) received independent review before application work. Only a root solution, minimal Razor Pages application under `src/`, EF Core/PostgreSQL infrastructure, external secret configuration, health checks, and verified setup documentation belong here. No product entities, meaningless empty migrations, product workflows, local service provisioning, authentication, or product features belong to this milestone. The product behavior below remains the later MVP target.
+Milestone 2 completed the architecture baseline at `b68e3ad`, and milestone 3 completed the skeleton at `5880801`. The current milestone 4 designs alert configuration and management before runtime workflows, following [the request](../prompts/019-alert-configuration-model-and-management-ui.md) and its scope clarification. The feature design is approved. Configuration persistence, a first product migration, management pages, Tailwind assets and OpenTelemetry logs/request traces are implemented. Actual acceptance checks are recorded in the [milestone evidence](../evidence/reviews/2026-09-14-alert-configuration-validation.md). This milestone retains one condition per alert, adds ownership-aware management for one configured owner under [ADR-008](adr/ADR-008-use-single-configured-mvp-owner.md), and includes minimal logs/traces and Razor Pages/Tailwind styling. Runtime processing, delivery, operational views, authentication, and multiple conditions remain outside this milestone.
+
+The completed skeleton followed [prompt 010](../prompts/010-create-application-skeleton.md), [ADR-006](adr/ADR-006-use-existing-shared-dev-infrastructure.md), and its reviewed [specification](superpowers/specs/2026-09-14-application-skeleton-design.md) and [plan](superpowers/plans/2026-09-14-application-skeleton.md). Its no-product-model restriction was specific to milestone 3; the broader product behavior below remains the MVP target.
 
 ## Target users and deployment
 
-A single trusted operator demonstrates pre-created user and admin roles locally. A Development-only identity selector is sufficient; independent real-user login, enrollment, and a public pilot are deferred. Preserve owner/role boundaries in management operations without claiming that a selectable demo identity authenticates a real person.
+The MVP is single-user, operated locally with one configured/default owner. Persist stable alert ownership and scope all application alert reads/writes to that owner. No identity selector, editable owner field, user/admin simulation, authentication, or authorization infrastructure is included. [ADR-008](adr/ADR-008-use-single-configured-mvp-owner.md) supersedes the earlier demo-role assumption. Future authentication can replace the owner resolver without redesigning alert ownership; the current mechanism is not a security boundary.
 
 Use a local ASP.NET Core/Razor Pages management application, EF Core product migrations, the existing shared DEV PostgreSQL product database, and the hosted n8n runtime at `https://n8n.nasgard.io`. The application remains loopback-only in development; the hosted n8n editor follows its existing external access controls. Do not create or manage local service instances or n8n internal persistence. n8n reads conditions and writes operational state directly in the product database using a dedicated least-privilege runtime credential, separate from the application and migration roles. The application owns configuration/management and operational reads; all event processing, transport retries, and circuit behavior belong in n8n. No n8n/application HTTP endpoints are needed.
 
 ## Included product behavior
 
 - **One initial real event type:** earthquakes from one provider selected later. The user confirmed that RSS in the example described ingestion generally, not a switch to news.
-- **Configurable alerts:** owner, name, enabled state, one supported condition, and email and/or Slack destination selection. Initially the condition is earthquake magnitude greater than or equal to a user-selected finite numeric threshold. Unsupported fields/operators/values are rejected.
+- **Configurable alerts:** owner, name, enabled state, one supported condition, and a user profile holding shared email and/or Slack destinations. Initially the condition is earthquake magnitude greater than or equal to a user-selected finite numeric threshold. Unsupported fields/operators/values are rejected.
 - **Reusable event/rule boundary:** distinguish provider identity from canonical event type; use a common envelope and validated type-specific data. Another provider of the same type reuses its contract. New business meanings may need new logic, not a duplicate processing pipeline.
 - **Durable event processing:** unique source/external-event identity and Pending/Evaluated state. Retry unfinished evaluation even when the event is no longer new. Read one consistent rule snapshot and atomically create unique delivery intents and mark evaluation complete.
 - **Durable delivery:** one intent per event/alert/channel, including an immutable matched-content/destination snapshot. Independent scheduled delivery does not depend on new event arrival. Include attempt/outcome records and visible permanent failures.
-- **Slack and email:** Slack proves the first external slice; email completes the required MVP and validates the channel boundary. One configured workspace and one sender profile, with allowlisted demo destinations and at most one destination per selected channel on an alert.
+- **Slack and email:** Slack proves the first external slice; email completes the required MVP and validates the channel boundary. One configured workspace and one sender profile, with at most one email and one Slack destination per user, shared across that user’s alerts under ADR-010. Live demonstrations use explicitly authorized destinations.
 - **Workflow-owned retries and circuit breaker:** retry transient/uncertain sends automatically with backoff, accepting possible external duplicates as the user requested. Keep independent persistent circuits per transport profile, pause calls while Open, and permit one recovery probe. No application-owned gate or retry service.
 - **Minimum management:** list, create, edit, enable, and disable own alerts through Razor Pages. Hard deletion and historical rematching are not required.
 - **Minimum operational admin:** inspect event processing, related delivery/attempt status, sanitized errors, next retry time, and circuit state. Workflow debugging and delivery recovery remain n8n operations; the admin is observational.
@@ -42,7 +44,7 @@ The user confirmed earthquakes after comparing these options and later clarified
 Create an enabled alert with threshold 5.0 before submitting controlled events:
 
 1. Magnitude 4.9 is accepted/evaluated but creates no delivery.
-2. Magnitude 5.0 creates one delivery per selected channel.
+2. Magnitude 5.0 creates one delivery per configured user channel.
 3. Replaying its source/external ID creates neither another event nor another intent.
 4. Stopping after event insertion leaves Pending work; a later evaluation run completes it.
 5. Rolling back evaluation leaves no partial intent/completion state.
@@ -50,7 +52,7 @@ Create an enabled alert with threshold 5.0 before submitting controlled events:
 7. After cooldown, one permitted probe checks recovery; successful delivery and its recorded outcome are visible.
 8. A lost send acknowledgement leads to a retry and may produce a duplicate external message. The internal intent remains unique.
 
-These are acceptance examples to implement and test, not claims that those results exist. The first end-to-end demonstration may use seeded conditions before the management milestone; final MVP acceptance includes the Razor Pages configuration journey and both delivery channels.
+These are acceptance examples to implement and test, not claims that those results exist. The first end-to-end demonstration consumes configuration persisted through the preceding management milestone; temporary hard-coded or seeded configuration is no longer the planned prerequisite. Final MVP acceptance includes the Razor Pages configuration journey and both delivery channels.
 
 ## Explicit planning limitations
 

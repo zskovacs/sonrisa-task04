@@ -52,7 +52,7 @@ Shared DEV availability, network access, compatible versions, and product-databa
 
 Milestone 3 creates no product entities, migrations without a model, product workflows, or remote provisioning. Prefer read-only connectivity checks. Do not restart shared n8n/PostgreSQL, change unrelated configuration, or mutate unrelated data for validation. Future product schema changes, grants, workflows, and controlled failure experiments require their own bounded milestone requirements and isolation from unrelated shared work.
 
-The ten major milestone commits remain in the same order. This amendment is preparatory work within `feat: add application skeleton and local infrastructure`; it does not complete that milestone or authorize later product features.
+At the time of this topology amendment, the ten major milestone commits remained in the same order. The later milestone 4 sequencing refinement is recorded separately in [the plan](../01-plan.md) and decision D-004. This amendment was preparatory work within `feat: add application skeleton and local infrastructure`; it did not itself complete that milestone or authorize later product features.
 
 ## Validation and revisit conditions
 

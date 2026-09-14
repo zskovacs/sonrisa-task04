@@ -1,6 +1,6 @@
 # Validation strategy
 
-These are future product checks for the architecture baseline, amended for shared DEV under [ADR-006](adr/ADR-006-use-existing-shared-dev-infrastructure.md). The skeleton uses focused real-process and CLI/IDE checks; no business-test suite or executable product workflows exist. See [the skeleton evidence](../evidence/reviews/2026-09-14-skeleton-review.md) for actual completed checks and pending validation. MCP connectivity alone does not validate product-database identity, application credentials, or readiness. [ADR-005](adr/ADR-005-direct-database-integration-and-workflow-owned-delivery.md) supersedes the earlier application ingestion/delivery API plan: n8n accesses the product database directly and implements retry/circuit-breaker behavior.
+These are future product checks for the architecture baseline, amended for shared DEV under [ADR-006](adr/ADR-006-use-existing-shared-dev-infrastructure.md). The skeleton uses focused real-process and CLI/IDE checks; milestone 4 adds a focused configuration/test-host suite and guarded real-PostgreSQL tests; executable product workflows remain absent. See [the skeleton evidence](../evidence/reviews/2026-09-14-skeleton-review.md) for actual completed checks and pending validation. MCP connectivity alone does not validate product-database identity, application credentials, or readiness. [ADR-005](adr/ADR-005-direct-database-integration-and-workflow-owned-delivery.md) supersedes the earlier application ingestion/delivery API plan: n8n accesses the product database directly and implements retry/circuit-breaker behavior.
 
 ## Acceptance method
 
@@ -21,7 +21,7 @@ Use controlled events, fixed time where relevant, and isolated notification dest
 - Validate the final transaction boundary with real PostgreSQL. Do not substitute an EF in-memory provider for relational correctness or assume that multiple workflow nodes share a transaction.
 - Prove recoverability if an execution stops between event acceptance, matching, and durable notification creation. Pending event evaluation and Pending delivery scheduling must recover it without another new source event.
 - Verify persistent notification/circuit state across workflow and process restarts in the product database, including restart while Open or Half-open.
-- Test relevant role/ownership checks at the management boundary. Local demo roles must not be represented as production authentication.
+- Test owner scoping for every management read/write with at least two owners, foreign IDs, and forged OwnerId form input. No demo role selection or authentication exists under ADR-008; ownership-aware queries must not be represented as a security boundary.
 
 ## Workflow-level validation
 
@@ -50,6 +50,12 @@ External sends require explicitly authorized test destinations. Missing credenti
 Check missing/invalid settings and timing parameters without printing their values. Connection-string values must be absent from every tracked artifact, including examples, migration helpers, exports, logs, prompts, and evidence. Application and EF tooling obtain values from external configuration; n8n uses credentials. Do not claim that ignored files alone establish secret safety.
 
 Store only actual screenshots, test output, and meaningful review notes in the existing evidence directories. Include the tested revision, procedure/command, expected and observed results, and limitations. Inspect for secrets and personal data; identify redactions. Record material corrections in [the AI review log](ai-review-log.md).
+
+## Milestone 4 configuration validation
+
+The current task is configuration management before runtime workflows. Preserve one supported condition per alert; test create/edit/enable/disable, invalid configuration, shared profile validation and changes, atomic persistence, and ownership scoping with actual PostgreSQL where relational semantics matter. Do not create runtime event/delivery tables or evaluate events in the application. Review migration source/SQL and confirm the intended product database before shared DEV application. Use isolated test-owned state; do not reset a shared database. The amended specification uses users and alerts, with generated owner/profile/alert fixtures and exact cleanup for committed tests. Test missing-profile guidance, profile isolation, first-save races, stale settings, the alerts/users join, and rejection of ambiguous legacy migration target sets. PostgreSQL tests require both SONRISA_TEST_DATABASE and a matching SONRISA_TEST_DATABASE_NAME; no automatic server provisioning, EF InMemory or database reset is used.
+
+Validate the proposed reproducible Tailwind build, Razor forms and accessibility, local/container asset serving, OpenTelemetry logs/request traces, no-endpoint startup, unavailable-exporter independence, and absence of secrets/sensitive form data in telemetry. Track actual outcomes in [milestone evidence](../evidence/reviews/2026-09-14-alert-configuration-validation.md); this strategy alone does not establish passing results. No local observability platform or metrics requirement is added.
 
 ## Checks for the topology amendment and skeleton milestone
 

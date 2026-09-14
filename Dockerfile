@@ -1,3 +1,11 @@
+FROM node:24.21.0-bookworm-slim AS css-build
+WORKDIR /src
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY src/Sonrisa.Web/Pages/ src/Sonrisa.Web/Pages/
+COPY src/Sonrisa.Web/Styles/ src/Sonrisa.Web/Styles/
+RUN npm run css:build
+
 FROM mcr.microsoft.com/dotnet/sdk:10.0.401 AS build
 WORKDIR /src
 
@@ -6,6 +14,7 @@ COPY src/Sonrisa.Web/Sonrisa.Web.csproj src/Sonrisa.Web/
 RUN dotnet restore src/Sonrisa.Web/Sonrisa.Web.csproj
 
 COPY src/Sonrisa.Web/ src/Sonrisa.Web/
+COPY --from=css-build /src/src/Sonrisa.Web/wwwroot/css/site.css src/Sonrisa.Web/wwwroot/css/site.css
 RUN dotnet publish src/Sonrisa.Web/Sonrisa.Web.csproj \
     --configuration Release \
     --no-restore \

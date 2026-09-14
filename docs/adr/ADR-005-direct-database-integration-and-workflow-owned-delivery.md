@@ -8,6 +8,10 @@ This supersedes the application/HTTP ownership assumptions in ADR-001 and ADR-00
 
 **DEV topology amendment:** [ADR-006](ADR-006-use-existing-shared-dev-infrastructure.md) supersedes the requirement below that this project account for a separate n8n internal database and its credential. Hosted n8n owns its internal persistence outside this repository. The product database remains the shared integration contract, with separate least-privilege application and workflow credentials and EF Core schema ownership. All runtime-processing ownership decisions remain in force.
 
+**MVP ownership amendment:** [ADR-008](ADR-008-use-single-configured-mvp-owner.md) supersedes the earlier demo identity/role-selection assumption. Use one configured owner and owner-scoped management without authentication or authorization infrastructure. Other current decisions remain unchanged.
+
+The operator-provisioned destination assumption is superseded by [ADR-010](ADR-010-store-shared-user-notification-destinations.md): current-owner notification destinations are managed in PostgreSQL and shared across alerts. Processing and transport-credential ownership remain unchanged.
+
 ## Context
 
 The prior design assigned canonical validation, matching, durable delivery coordination, and circuit gating to application services accessed through HTTP. The user clarified a smaller application responsibility: save user conditions and provide the associated management functionality. n8n should read product data directly and implement the circuit breaker within its workflows.

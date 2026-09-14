@@ -1,0 +1,49 @@
+@page "/alerts"
+@model Sonrisa.Web.Pages.Alerts.IndexModel
+@{ ViewData["Title"] = "Alerts"; }
+<div class="flex flex-wrap items-center justify-between gap-4">
+    <div>
+        <h1 class="text-2xl font-bold">Alerts</h1>
+        <p class="mt-1 text-slate-700">Enabled alerts are eligible for future processing. Runtime processing is not implemented.</p>
+    </div>
+    <a class="rounded bg-sky-700 px-4 py-2 font-semibold text-white hover:bg-sky-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600" asp-page="Create">Create alert</a>
+</div>
+@if (!string.IsNullOrEmpty(Model.Message))
+{
+    <p class="mt-6 rounded border border-amber-300 bg-amber-50 p-4 text-amber-900" role="alert">@Model.Message</p>
+}
+else if (Model.Alerts.Count == 0)
+{
+    <section class="mt-6 rounded border border-dashed border-slate-300 bg-white p-6">
+        <h2 class="text-lg font-semibold">No alerts yet</h2>
+        <p class="mt-2 text-slate-700">Save your <a class="text-sky-800 underline" asp-page="/Settings/Notifications">notification settings</a>, then create an alert with an earthquake magnitude threshold.</p>
+    </section>
+}
+else
+{
+    <div class="mt-6 overflow-x-auto rounded border border-slate-200 bg-white">
+        <table class="min-w-full divide-y divide-slate-200">
+            <thead class="bg-slate-100 text-left text-sm text-slate-700">
+                <tr><th class="px-4 py-3">Name</th><th class="px-4 py-3">Condition</th><th class="px-4 py-3">Status</th><th class="px-4 py-3"><span class="sr-only">Actions</span></th></tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200">
+            @foreach (var alert in Model.Alerts)
+            {
+                <tr>
+                    <td class="px-4 py-3 font-medium"><a class="text-sky-800 underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600" asp-page="Edit" asp-route-id="@alert.Id">@alert.Name</a></td>
+                    <td class="px-4 py-3">Earthquake magnitude &gt;= @alert.Threshold</td>
+                    <td class="px-4 py-3"><span class="rounded px-2 py-1 text-sm font-medium @(alert.Enabled ? "bg-emerald-100 text-emerald-900" : "bg-slate-200 text-slate-800")">@(alert.Enabled ? "Enabled" : "Disabled")</span></td>
+                    <td class="px-4 py-3">
+                        <form method="post" asp-page-handler="Status">
+                            <input type="hidden" name="id" value="@alert.Id" />
+                            <input type="hidden" name="revision" value="@alert.Revision" />
+                            <input type="hidden" name="enabled" value="@(alert.Enabled ? "false" : "true")" />
+                            <button class="rounded border border-slate-400 px-3 py-1 text-sm font-semibold hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600" type="submit">@(alert.Enabled ? "Disable" : "Enable")</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}

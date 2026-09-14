@@ -8,6 +8,8 @@ This directory contains only substantive user-authored task requests. It is not 
 | [002](002-design-mvp-architecture.md) | Define and review the MVP architecture and product design. |
 | [010](010-create-application-skeleton.md) | Create the application skeleton and integrate with existing DEV infrastructure. |
 | [018](018-rename-context-and-add-application-docker.md) | Rename the context and add application-only Docker testing. |
+| [019](019-alert-configuration-model-and-management-ui.md) | Design and implement alert configuration, ownership-aware management, Tailwind styling, and OpenTelemetry. |
+| [020](020-store-shared-user-destinations-and-use-fluentvalidation.md) | Correct destination ownership and use an existing validation framework. |
 
 Record meaningful user requests that start a milestone or assign implementation/product-validation work. Exclude agent-generated plans, delegated assignments, internal review prompts and loops, brainstorming answers, clarifications, approvals, status replies, and routine housekeeping. Honor explicit requests not to record a message.
 

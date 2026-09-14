@@ -1,0 +1,14 @@
+@page "/settings/notifications"
+@model Sonrisa.Web.Pages.Settings.NotificationsModel
+@{ ViewData["Title"] = "Notification settings"; }
+<h1 class="text-2xl font-bold">Notification settings</h1>
+<p class="mt-1 text-slate-700">These destinations are shared by all your alerts. Save at least one before creating an alert.</p>
+@if (Model.Saved) { <p class="mt-4 rounded border border-emerald-300 bg-emerald-50 p-3 text-emerald-900" role="status">Notification settings saved.</p> }
+@if (Model.Message is not null) { <p class="mt-4 rounded border border-amber-300 bg-amber-50 p-3 text-amber-900" role="alert">@Model.Message</p> }
+<form class="mt-6 max-w-2xl space-y-5 rounded border border-slate-200 bg-white p-6" method="post">
+    <div asp-validation-summary="ModelOnly" class="text-sm text-red-700" role="alert"></div>
+    <div><label class="block font-medium" asp-for="Input.EmailDestination">Email destination</label><input class="mt-1 w-full rounded border border-slate-400 px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600" asp-for="Input.EmailDestination" type="email" maxlength="254" autocomplete="email" /><span asp-validation-for="Input.EmailDestination" class="text-sm text-red-700"></span></div>
+    <div><label class="block font-medium" asp-for="Input.SlackDestination">Slack destination</label><input class="mt-1 w-full rounded border border-slate-400 px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600" asp-for="Input.SlackDestination" maxlength="80" /><p class="text-sm text-slate-700">Enter an uppercase channel ID, such as C12345678.</p><span asp-validation-for="Input.SlackDestination" class="text-sm text-red-700"></span></div>
+    <input type="hidden" asp-for="Input.Revision" />
+    <div class="flex gap-3"><button class="rounded bg-sky-700 px-4 py-2 font-semibold text-white hover:bg-sky-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600" type="submit">Save settings</button><a class="rounded border border-slate-400 px-4 py-2 font-semibold hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600" asp-page="/Alerts/Index">Cancel</a></div>
+</form>
