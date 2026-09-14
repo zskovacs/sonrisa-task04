@@ -8,6 +8,9 @@
 # Existing machine-specific coding-agent configuration.
 /.codex/
 
+# Local Superpowers session state, at any directory depth.
+.superpowers
+
 # .NET build and package output.
 [Bb]in/
 [Oo]bj/
