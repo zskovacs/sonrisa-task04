@@ -4,13 +4,13 @@ Current contract follows the [amended specification](superpowers/specs/2026-09-1
 
 ## Ownership and supported configuration
 
-The management application owns configuration writes; future n8n reads configuration directly. EF migrations own schema. Every application alert/profile read and write is scoped to the current owner UUID under ADR-008. The MVP remains single-user with no authentication. A real minimal users row now stores current product settings; it is not an identity/login record or security boundary.
+The management application owns configuration writes; n8n reads configuration directly. EF migrations own schema. Normal management alert/profile reads and writes are scoped to the current owner UUID under ADR-008. The read-only admin area deliberately projects cross-owner product configuration under prompt 027, with channel-presence flags instead of destination values. The MVP remains single-user with no authentication. A real minimal users row now stores current product settings; it is not an identity/login record or security boundary.
 
 `public.users` contains `id` UUID primary key, optional `email_destination` varchar(254), optional `slack_destination` varchar(80), and a nonempty `revision` UUID. At least one destination is required on a saved profile. Supplied destinations are trimmed/nonblank/bounded. Database trim checks use an explicit Unicode whitespace set matching .NET Trim, independent of PostgreSQL locale. Email is a bare mailbox; Slack is an opaque uppercase alphanumeric channel ID. No password, transport credential, webhook URL or token belongs in this table. The first successful settings save creates the configured owner's row; no fake seeded identity is needed.
 
 `public.alerts` contains required `id`, `owner_id`, `name`, `event_type`, `enabled`, `revision`, `condition_field`, `condition_operator`, `condition_value_type`, and `condition_value`. UUID owner_id references users.id with restricted deletion. Name is trimmed, nonblank and bounded to 120 characters; enabled is boolean. Text codes are exactly `earthquake`, `magnitude`, `gte`, and `number`. The value is finite PostgreSQL double precision (IEEE-754 binary64). No generic string guessing, integer enum ordering, JSON rules or executable expressions.
 
-Only earthquake magnitude greater-than-or-equal is supported. Management validates configuration; n8n later validates and evaluates actual events. Missing/invalid event magnitude must not become zero. New operators/types/fields require an explicit contract extension; multiple conditions and AND/OR groups remain deferred. String/boolean conditions may require a small typed-storage migration when actually needed.
+Only earthquake magnitude greater-than-or-equal is supported. Management validates configuration; n8n validates and evaluates actual events. Missing/invalid event magnitude must not become zero. New operators/types/fields require an explicit contract extension; multiple conditions and AND/OR groups remain deferred. String/boolean conditions may require a small typed-storage migration when actually needed.
 
 Every alert uses its owner's common email/Slack destinations. There is no alert_channels table in the revised schema and no per-subscription channel selection. One external email sender and one Slack workspace/profile remain the runtime assumption; transport credentials belong to n8n, not product destination records. Additional delivery channels can extend profile storage and projection without changing the single-condition evaluation model.
 
@@ -29,7 +29,7 @@ WHERE a.enabled AND a.event_type = $1
 ORDER BY a.id;
 ```
 
-This returns one row per alert with one or both shared destinations. Under ADR-012, n8n reads enabled configuration across owners and expands destinations into transient channel items, without delivery intents. The application still reads only its current owner's records.
+This returns one row per alert with one or both shared destinations. Under ADR-012, n8n reads enabled configuration across owners and expands destinations into transient channel items, without delivery intents. Normal management still reads only its current owner's records; `/admin`, `/admin/users` and `/admin/alerts` provide separate read-only cross-owner projections.
 
 One PostgreSQL statement sees one consistent committed configuration snapshot. [ADR-012](adr/ADR-012-use-n8n-native-runtime-state.md) supersedes durable runtime writes: n8n evaluates this joined snapshot and dispatches directly using native technical state. No event or delivery state is written back. PostgreSQL does not propagate synchronous trace context between the application and n8n.
 

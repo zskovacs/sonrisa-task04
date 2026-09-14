@@ -7,8 +7,9 @@ Current decisions follow [ADR-012](adr/ADR-012-use-n8n-native-runtime-state.md),
 - The original brief requires configurable alerts, Slack, email, extensibility and an admin view. No reliability SLA, permanent event ledger, delivery audit, guaranteed delivery or recovery after outages is required.
 - Earthquakes remain the first source type; public USGS all-hour GeoJSON is selected. RSS and market data are extension examples, not current integrations.
 - One supported typed condition: earthquake/magnitude/gte/number with a finite numeric threshold. No multiple conditions, AND/OR, arbitrary scripts or rules DSL.
-- Single-user management uses one configured/default owner, owner-scoped reads/writes and no authentication (ADR-008). Runtime reads enabled configuration across owners.
+- Normal management uses one configured/default owner, owner-scoped reads/writes and no authentication (ADR-008). Read-only admin pages intentionally show configuration across owners under prompt 027. Runtime reads enabled configuration across owners.
 - The actual PostgreSQL configuration model has alerts with inline conditions and users with shared email/Slack destinations (ADR-010). Preserve revision/atomicity validation and FluentValidation.
+- The admin purpose is configuration visibility: summary counts, owner/channel-presence overview and cross-owner alert conditions. No mutation, runtime dashboard or n8n API integration is required.
 - ASP.NET Core/Razor Pages is the local management plane; shared DEV PostgreSQL and hosted n8n remain externally operated. EF owns product migrations; n8n reads configuration directly. There is no application runtime API.
 - n8n owns normalization, native technical deduplication, evaluation, channel dispatch, bounded retry and execution visibility. Product runtime tables/queues/recovery are rejected.
 - Slack and Email use five total native attempts per notification; exhaustion discards that item and continues subsequent notifications. Ambiguous duplicates/loss and dedup-before-delivery loss are accepted.
@@ -34,11 +35,10 @@ Current decisions follow [ADR-012](adr/ADR-012-use-n8n-native-runtime-state.md),
 | Area | Remaining question / revisit point |
 | --- | --- |
 | External Email delivery | SMTP4DEV capture validates the implemented native SMTP branch, credential binding, message construction and capture. A real external provider and recipient inbox remain untested; a provider swap should need credential/sender configuration only. |
-| Admin purpose | Define the smallest product admin view independently of the rejected event/delivery ledger. Technical debugging remains in n8n. |
 | Unattended activation | Review history capacity behavior, authorized destinations, source frequency, timeouts and shared DEV load before activating the future five-minute schedule. No automatic history reset is currently approved. |
 | Scale | No numeric production event/user/latency target exists. Do not infer one or add concurrency infrastructure speculatively. |
 | Production security | Distinct least-privilege application, migration and n8n roles and secure transport remain required before production. Existing broad DEV access/no-TLS observations are documented under ADR-007 and runtime evidence, not desired production settings. |
-| Authentication | Deferred intentionally; replace the owner resolver with authenticated identity only under a later requirement. |
+| Authentication | Deferred intentionally; admin pages are unprotected and not a production security boundary. Real access control and an authenticated owner resolver require a later requirement. |
 | Telemetry | Application OpenTelemetry remains implemented; global hosted n8n OTEL is unverified and unchanged. |
 | Retention | Configuration lifecycle and n8n execution/dedup retention are separate. No automatic product-runtime cleanup exists because there is no product runtime store. |
 | Time budget | No numeric delivery date or production-readiness target is supplied. Do not turn MVP validation into a production guarantee. |

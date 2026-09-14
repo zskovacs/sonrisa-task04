@@ -6,11 +6,23 @@ A product for user-configured alerts about important world events, with email an
 
 This MVP is single-user and does not implement authentication. The persistence/query model is ownership-aware so authentication can be added later without redesigning alert ownership. Authentication was not part of the requested feature scope and is deliberately deferred. The configured-owner resolver is an MVP/development mechanism, not a security boundary; see [ADR-008](docs/adr/ADR-008-use-single-configured-mvp-owner.md).
 
+## Product administration
+
+The read-only admin area shows existing product configuration across owners:
+
+- `/admin`: owner/alert totals, enabled/disabled counts, and owners with Slack/Email configured.
+- `/admin/users`: owner identifiers, alert/enabled counts, and Yes/No channel indicators.
+- `/admin/alerts`: owner association, alert name, event type, state, condition and available channels.
+
+Normal `/alerts` and notification settings remain scoped to the configured MVP owner. Admin lists show channel presence without full destination values and provide no editing or user-management actions. These pages are unprotected MVP surfaces: authentication/authorization is deferred, and they are not a production security boundary.
+
+The Sonrisa admin area provides cross-owner visibility into product configuration. Runtime workflow operations, executions, failures, retries and integration diagnostics remain intentionally delegated to n8n instead of being duplicated in the application. Admin pages make no n8n API calls and require no additional schema or runtime state. [Admin validation](evidence/reviews/2026-09-14-operational-admin-validation.md) records ownership, query, privacy, health and browser checks.
+
 ## Development topology
 
 | Component | Location and responsibility |
 | --- | --- |
-| ASP.NET Core / Razor Pages | Developer machine, directly or in an application-only container with loopback host publishing; configuration and management UI. |
+| ASP.NET Core / Razor Pages | Developer machine, directly or in an application-only container with loopback host publishing; configuration management and read-only product admin UI. |
 | PostgreSQL product database | Existing shared DEV server; EF Core owns product schema and migrations. |
 | n8n | Existing DEV runtime at `https://n8n.nasgard.io`; product workflows directly access the product database; a separate least-privilege credential is the intended runtime boundary. The skeleton has no n8n dependency or configuration. |
 
@@ -66,7 +78,7 @@ Production application-runtime, n8n product-workflow, and migration access must 
 
 ## Alert configuration
 
-`MvpOwner:Id` optionally supplies a nonempty UUID. If absent, the application uses the fixed default `d203a533-6bf8-4a21-98a9-291a74ef9f28`. Keep it stable: changing it selects a different ownership scope and does not transfer alerts. Invalid explicit owner configuration fails startup with a key-only error. Every application list/read/edit/status operation filters by the resolved owner, and forms never accept an owner identifier. Future authentication replaces `ICurrentOwner` and maps authenticated subjects to these existing UUIDs.
+`MvpOwner:Id` optionally supplies a nonempty UUID. If absent, the application uses the fixed default `d203a533-6bf8-4a21-98a9-291a74ef9f28`. Keep it stable: changing it selects a different ownership scope and does not transfer alerts. Invalid explicit owner configuration fails startup with a key-only error. Normal alert/settings list/read/edit/status operations filter by the resolved owner, and forms never accept an owner identifier. Read-only admin pages deliberately query across owners. Future authentication replaces `ICurrentOwner` and maps authenticated subjects to these existing UUIDs.
 
 Open `/settings/notifications` and save one shared email destination, Slack destination, or both before creating an alert. These settings live in the current owner’s `public.users` row and apply to every alert belonging to that owner. The first successful save creates the profile; no identity seed or destination application configuration is required. Email is one bare mailbox; Slack is an opaque uppercase alphanumeric channel ID. FluentValidation 12.1.1 (Apache-2.0) validates inputs through manual calls, without contacting either service. Transport credentials remain in n8n/runtime configuration; no credentials or webhook URLs belong in product settings.
 

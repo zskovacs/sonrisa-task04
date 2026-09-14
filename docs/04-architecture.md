@@ -6,7 +6,7 @@ The current boundary is [ADR-012](adr/ADR-012-use-n8n-native-runtime-state.md), 
 
 | Component | Owns |
 | --- | --- |
-| ASP.NET Core / Razor Pages | Owner-scoped configuration management, validation, revision checks and application telemetry. |
+| ASP.NET Core / Razor Pages | Owner-scoped configuration management, read-only cross-owner product visibility, validation, revision checks and application telemetry. |
 | Sonrisa PostgreSQL | Product configuration: users, ownership, alerts, one typed condition, shared non-secret notification destinations; EF migration history. |
 | n8n | Source polling, canonical normalization, technical deduplication, matching, channel routing, bounded transport retry and execution history. |
 
@@ -16,7 +16,15 @@ The application runs locally, directly or in its application-only container. Exi
 
 The actual model has `alerts` with a required owner, name, enabled flag, revision and inline textual condition columns, and `users` with shared email/Slack destinations and revision. The initial condition is `earthquake` / `magnitude` / `gte` / `number`; thresholds are finite binary64 numbers. ADR-010's shared per-user destinations and the [configuration contract](06-alert-configuration-contract.md) remain unchanged. Do not introduce a separate channel table for theoretical extensibility.
 
-The management application resolves one configured/default owner under ADR-008 and scopes all management reads/writes to it. Authentication is intentionally absent; the resolver is not an authentication boundary. n8n loads enabled alerts across owners using their user-profile join, without reading `MvpOwner:Id`. Runtime access does not expose foreign-owner configuration through the UI.
+The management application resolves one configured/default owner under ADR-008 and scopes all management reads/writes to it. Authentication is intentionally absent; the resolver is not an authentication boundary. n8n loads enabled alerts across owners using their user-profile join, without reading `MvpOwner:Id`. Normal management retains that owner boundary. The separately authorized read-only admin pages intentionally expose cross-owner configuration counts and alert summaries, without full destinations or mutation actions.
+
+## Product admin boundary
+
+`/admin` computes six configuration counts; `/admin/users` projects owner IDs, alert/enabled counts and channel-presence flags; `/admin/alerts` projects owner association, alert state, persisted condition and channel labels. Direct EF Core read-only projections use the existing tables. No current-owner filter applies to admin queries, while normal alert/settings reads and writes remain scoped.
+
+The Sonrisa admin area provides cross-owner visibility into product configuration. Runtime workflow operations, executions, failures, retries and integration diagnostics remain intentionally delegated to n8n instead of being duplicated in the application. There is no admin n8n client, synchronization, runtime database or new service layer. Query failures use existing sanitized logging/request tracing.
+
+Authentication/authorization is absent. These routes are not protected from untrusted users and are not a production security boundary. This product visibility clarification extends the previously deferred admin surface without changing the ownership model or n8n runtime architecture.
 
 ## One runtime pipeline
 

@@ -4,7 +4,7 @@
     <fieldset class="space-y-4">
         <legend class="text-lg font-semibold">General settings</legend>
         <div><label class="block font-medium" asp-for="Input.Name">Alert name</label><input class="mt-1 w-full rounded border border-slate-400 px-3 py-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600" asp-for="Input.Name" /><span asp-validation-for="Input.Name" class="text-sm text-red-700"></span></div>
-        <div><label class="block font-medium" asp-for="Input.Enabled">Enabled</label><input class="mt-1 size-4 rounded border-slate-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600" asp-for="Input.Enabled" /><p class="text-sm text-slate-700">Enabled alerts are eligible for future processing.</p><span asp-validation-for="Input.Enabled" class="text-sm text-red-700"></span></div>
+        <div><label class="block font-medium" asp-for="Input.Enabled">Enabled</label><input class="mt-1 size-4 rounded border-slate-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600" asp-for="Input.Enabled" /><p class="text-sm text-slate-700">Enabled alerts are eligible for notification processing.</p><span asp-validation-for="Input.Enabled" class="text-sm text-red-700"></span></div>
     </fieldset>
     <fieldset class="space-y-4">
         <legend class="text-lg font-semibold">Condition</legend>

@@ -8,11 +8,13 @@ One inactive, manual `Sonrisa - Process Alerts - DEV` workflow processes real US
 
 Milestone 5 removed the rejected product runtime entities and applied tables through a reviewed forward EF migration. It preserved old migrations, commits and evidence and archived the three old workflows after replacement validation. The actual tested export stays in Git without credentials or pinned execution data.
 
-The configuration model, UI, owner resolution and application telemetry remain unchanged. PostgreSQL stores `users` and `alerts` plus EF history. The condition remains earthquake/magnitude/gte/number, with one finite numeric threshold per alert. Destinations are shared per-user fields; runtime processing across owners does not broaden management UI access. Email added only an alert-name query projection/pass-through for user-facing text; it did not change selection or condition evaluation.
+During the Email extension, the configuration model, UI, owner resolution and application telemetry remained unchanged. PostgreSQL stores `users` and `alerts` plus EF history. The condition remains earthquake/magnitude/gte/number, with one finite numeric threshold per alert. Destinations are shared per-user fields; runtime processing across owners does not broaden management UI access. Email added only an alert-name query projection/pass-through for user-facing text; it did not change selection or condition evaluation.
 
-## Required later work
+## Product administration — milestone 7
 
-The product admin view is the next milestone. Its precise product purpose must be specified without assuming an event/delivery ledger or retry/circuit dashboard. n8n already provides technical execution investigation. This task does not authorize admin UI implementation.
+The authorized scope is three read-only configuration views: `/admin` summary counts, `/admin/users` cross-owner counts/channel-presence indicators and `/admin/alerts` cross-owner alert state/condition/channels. The existing configured-owner alert/settings management remains unchanged. No destination values, admin mutation actions, role switching or user-management features are added.
+
+The admin area is an unprotected MVP surface, not a production security boundary. Authentication/authorization remains deferred. Runtime executions, failures, retries and integration diagnostics remain in n8n; no runtime dashboard, n8n client, new schema, runtime persistence or observability stack is introduced. Final integrated validation and reflection remain separate milestones.
 
 ## Explicit limitations
 

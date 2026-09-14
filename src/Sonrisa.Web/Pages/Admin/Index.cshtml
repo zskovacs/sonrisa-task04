@@ -1,0 +1,22 @@
+@page "/admin"
+@model Sonrisa.Web.Pages.Admin.IndexModel
+@{ ViewData["Title"] = "Admin overview"; }
+<h1 class="text-2xl font-bold">Admin overview</h1>
+<p class="mt-1 text-slate-700">Configuration across all owners. Runtime executions, failures and retries are available in n8n.</p>
+<partial name="_AdminNav" />
+@if (Model.Unavailable)
+{
+    <p class="mt-6 rounded border border-amber-300 bg-amber-50 p-4 text-amber-900" role="alert">Admin configuration is temporarily unavailable. Please try again later.</p>
+}
+else
+{
+    <dl class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div class="rounded border border-slate-200 bg-white p-5"><dt class="text-sm text-slate-700">Owners</dt><dd class="mt-1 text-3xl font-semibold">@Model.Owners</dd></div>
+        <div class="rounded border border-slate-200 bg-white p-5"><dt class="text-sm text-slate-700">Alerts</dt><dd class="mt-1 text-3xl font-semibold">@Model.Alerts</dd></div>
+        <div class="rounded border border-slate-200 bg-white p-5"><dt class="text-sm text-slate-700">Enabled alerts</dt><dd class="mt-1 text-3xl font-semibold">@Model.EnabledAlerts</dd></div>
+        <div class="rounded border border-slate-200 bg-white p-5"><dt class="text-sm text-slate-700">Disabled alerts</dt><dd class="mt-1 text-3xl font-semibold">@Model.DisabledAlerts</dd></div>
+        <div class="rounded border border-slate-200 bg-white p-5"><dt class="text-sm text-slate-700">Owners with Slack</dt><dd class="mt-1 text-3xl font-semibold">@Model.OwnersWithSlack</dd></div>
+        <div class="rounded border border-slate-200 bg-white p-5"><dt class="text-sm text-slate-700">Owners with Email</dt><dd class="mt-1 text-3xl font-semibold">@Model.OwnersWithEmail</dd></div>
+    </dl>
+    <p class="mt-6 text-slate-700">Browse <a class="text-sky-800 underline" asp-page="/Admin/Users">all owners</a> or <a class="text-sky-800 underline" asp-page="/Admin/Alerts">all alerts</a>.</p>
+}

@@ -8,6 +8,14 @@ Retain focused .NET validation, EF model, ownership, shared profile/revision, tr
 
 The forward runtime removal must change only the two obsolete runtime tables and their dependent objects. Review migration source and incremental generated SQL, check current database/history/counts/dependencies, and keep any restricted backup outside Git. After application, verify only justified configuration tables and EF history remain, and exercise actual management behavior. Historical migrations must be unchanged.
 
+## Read-only product administration
+
+Validate `/admin` counts, `/admin/users` cross-owner counts/channel indicators and `/admin/alerts` owner/state/condition/channel rendering using guarded PostgreSQL fixtures. Isolate aggregate HTTP tests in a nonparallel xUnit collection so other committed test fixtures cannot race totals. Clean up generated IDs only. Verify the normal owner-only list and rejection of foreign-owner edit/status route/form requests with valid antiforgery tokens.
+
+Check absent full destinations, encoded user text, no admin mutation actions, safe missing/malformed configuration and query-failure responses, owner-without-alerts and empty query results. Controlled empty readers are mock evidence, not proof that DEV was empty; do not delete shared data for an empty-state test. The existing schema requires a destination on saved owners, so None is a defensive display fallback rather than a persistable fixture.
+
+Build/start the application, inspect health endpoints and the requested routes, and check responsive browser rendering where available. Compare schema/data and the inactive n8n workflow to the pre-task baseline. Existing logging/tracing must stay destination-free; authentication remains absent. No workflow execution or external sends are required to validate these pages.
+
 ## Exact workflow logic and export
 
 Run `node --test n8n/tests/*.test.mjs` against the exact source inserted into Code nodes. Cover canonical mapping and input bounds, malformed/non-numeric magnitude, multiple events in a batch, numeric threshold below/equal/above, disabled/malformed conditions, owner-independent configuration, safe Slack text, plain-text Email preparation/result confirmation and independent channel validation. Unknown channels must yield visible skips, not success; missing/invalid Email destinations must not send.
@@ -36,4 +44,4 @@ After retry exhaustion the notification is discarded. Ambiguous transport failur
 
 Keep old workflows inactive; archive them only after replacement acceptance. Preserve execution and Git history. Final graph remains inactive with manual live/empty-fixture defaults; no recurring activation. Record exact execution IDs and mock boundaries, sanitized outcomes, applied migration ID and commands/results in evidence. Never store raw credentials, connection values, unrelated executions or full source payload dumps.
 
-Use per-task review and final whole-branch review. Resolve material findings before the milestone commit. Existing Slack evidence remains applicable because the Slack branch/settings stayed unchanged; the Email validation separately records fresh deterministic, failure-isolation and SMTP4DEV evidence. The product admin view belongs to a separately authorized later milestone.
+Use per-task review and final whole-branch review. Resolve material findings before the milestone commit. Existing Slack evidence remains applicable because the Slack branch/settings stayed unchanged; the Email validation separately records fresh deterministic, failure-isolation and SMTP4DEV evidence. The product admin milestone validates configuration visibility separately from n8n runtime evidence; no runtime behavior change or new external send is implied.
