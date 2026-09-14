@@ -1,0 +1,9 @@
+# Local credentials and environment files; examples may be added when needed.
+.env
+.env.*
+!.env.example
+!.env.*.example
+.envrc
+
+# Existing machine-specific coding-agent configuration.
+/.codex/
