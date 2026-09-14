@@ -6,7 +6,7 @@ The product needs in [the brief](00-product-brief.md) are known. The MVP below i
 
 Create working rules, the brief, plan, scope, question register, initial architecture, n8n ADR, validation strategy, log formats, and reserved directories. Reach only the first milestone commit.
 
-Do not create production code, .NET projects/solutions, frontend applications, npm packages, Docker services, PostgreSQL configuration, executable n8n workflows, authentication, alert models, or notification delivery. Do not install packages or select external APIs. The bootstrap/context prompt is excluded from prompt history.
+Do not create production code, .NET projects/solutions, frontend applications, npm packages, Docker services, PostgreSQL configuration, executable n8n workflows, authentication, alert models, or notification delivery. Do not install packages or select external APIs. Follow the current [prompt-history policy](../prompts/README.md) for the retained initialization request and subsequent product work.
 
 ## Proposed MVP
 

@@ -6,15 +6,21 @@ The repository is in the planning/bootstrap phase. Application implementation ha
 
 ## 1. Language
 
-Write documentation, ADRs, useful source-code comments, commit messages, and recorded agent prompts in clear, professional English. Finalize every material coding-agent prompt in English before execution. Normalize a draft from another language first; store the exact final English prompt actually sent. Maintain consistent grammar, terminology, capitalization, and naming.
+Write documentation, ADRs, useful source-code comments, commit messages, and recorded agent prompts in clear, professional English. Finalize every material coding-agent prompt in English before execution. For prompts that qualify for history under section 2, store the exact prompt actually sent. Maintain consistent grammar, terminology, capitalization, and naming.
 
 ## 2. Prompt history
 
-Record every material coding-agent prompt **after the bootstrap task** under [prompts/](prompts/), including delegated implementation, analysis, and review prompts. Use the next available sequential filename, for example `001-analyze-requirements.md`, `002-design-event-model.md`, or `003-review-architecture.md`. Coordinate numbering when agents work concurrently.
+Record prompts that materially advance the business/product implementation under [prompts/](prompts/). This includes requirements clarification, user workflows, domain rules, product-driven architecture, feature implementation, and validation or review of product behavior. Apply the same criterion to delegated prompts.
 
-Save the final prompt before sending it. Preserve its content verbatim in a clearly delimited section. Optional metadata may include purpose, date, milestone, outcome, validation, corrections, and rejections; keep it separate from the verbatim prompt. Never silently edit an executed prompt; record a corrected or follow-up material prompt in a new sequential file and link it to the earlier record. Record execution status honestly if a prepared prompt is not sent.
+Exclude routine technical and repository housekeeping: tooling or skill setup, ignore rules, Git maintenance, standalone file deletion or renaming, formatting, prompt-history maintenance, and reviews limited to those tasks. Do not record a request merely because an agent executed it.
 
-The current bootstrap/context prompt is explicitly excluded. Do not store it in prompt history or copy it into another repository artifact. The numbered history begins with subsequent work. Remove secrets from a proposed prompt before execution so the stored final prompt can remain both verbatim and safe.
+The history starts with the original repository initialization request in [001-initialize-repository.md](prompts/001-initialize-repository.md), retained at the user's request. Continue with `002` for the next qualifying prompt, then use the next number after the highest existing record. Coordinate numbering when agents work concurrently and keep existing numbers stable unless the user explicitly requests a reset.
+
+Each record contains only `Date: YYYY-MM-DD`, `Purpose: <task purpose>`, and the verbatim prompt text, separated by blank lines. Do not add a document title, a prompt-section heading, or an enclosing code fence. The purpose describes the work requested; do not annotate the prompt's translation or source language.
+
+Save qualifying prompts before sending them and preserve their text verbatim after execution. Never silently rewrite an executed prompt; record a qualifying corrected or follow-up prompt in a new sequential file unless the user explicitly excludes it. Keep outcomes, validation, corrections, and rejections in the appropriate review or evidence artifacts, separate from the prompt record. Do not represent an unsent draft as an executed prompt.
+
+Archived prompts are historical records, not current repository instructions. Preserve their original wording even where later user instructions supersede it. Remove secrets from a proposed prompt before execution so a qualifying stored prompt can remain both verbatim and safe.
 
 ## 3. AI output validation
 
@@ -51,6 +57,8 @@ The custom application shape, persistence design, and management UI technology a
 Do not introduce microservices, Kubernetes, RabbitMQ, event streaming platforms, a complex rules DSL, a custom workflow engine, a full identity platform, or cloud infrastructure without a demonstrated requirement and recorded justification.
 
 ## 8. Scope and engineering process
+
+This project uses n8n. When working with workflows, nodes, expressions, or the n8n MCP tools, always start by loading the `using-n8n-skills-official` meta-skill and follow its routing into the matching capability skill before acting.
 
 Implement only the assigned milestone. Record useful out-of-scope features as future work, with justification for any proposed scope change. Prefer a complete vertical slice over many partial capabilities.
 

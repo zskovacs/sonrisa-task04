@@ -7,3 +7,56 @@
 
 # Existing machine-specific coding-agent configuration.
 /.codex/
+
+# .NET build and package output.
+[Bb]in/
+[Oo]bj/
+artifacts/
+*.nupkg
+*.snupkg
+
+# Generated test reports and local runtime output. Keep evidence/ trackable.
+[Tt]est[Rr]esults/
+coverage/
+logs/
+
+# Preserve intentionally collected reports, including their original directories.
+!evidence/**/[Tt]est[Rr]esults/
+!evidence/**/artifacts/
+!evidence/**/coverage/
+!evidence/**/logs/
+
+# Rider personal state and generated metadata; keep team settings trackable.
+**/.idea/**/workspace.xml
+**/.idea/**/tasks.xml
+**/.idea/**/usage.statistics.xml
+**/.idea/**/dictionaries/
+**/.idea/**/shelf/
+**/.idea/**/caches/
+**/.idea/**/httpRequests/
+**/.idea/**/dataSources/
+**/.idea/**/dataSources*.xml
+**/.idea/**/modules.xml
+**/.idea/**/*.iml
+*.sln.iml
+*.DotSettings.user
+_ReSharper*/
+
+# Other local .NET IDE state.
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Local API/HTTP-client settings and private certificate bundles.
+appsettings.[Ll]ocal.json
+appsettings.*.[Ll]ocal.json
+http-client.private.env.json
+*.pfx
+*.p12
+
+# Operating-system metadata.
+.DS_Store
+Thumbs.db
+Desktop.ini

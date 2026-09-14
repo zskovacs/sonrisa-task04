@@ -18,7 +18,7 @@ A product for user-configured alerts about important world events, with email an
 | --- | --- |
 | `docs/` | Product planning, architecture, ADRs, validation, and later reflection |
 | `docs/diagrams/` | Future standalone diagrams; the initial Mermaid diagram is in the architecture document |
-| `prompts/` | Verbatim English prompts for material agent work after bootstrap |
+| `prompts/` | Original repository initialization request and verbatim prompts that advance product implementation |
 | `evidence/` | Actual screenshots, test output, and review notes when produced |
 | `n8n/workflows/` | Reserved for future reviewed workflow exports |
 | `src/` | Reserved for future application code |
