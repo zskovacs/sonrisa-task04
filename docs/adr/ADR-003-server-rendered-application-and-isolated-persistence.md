@@ -4,9 +4,11 @@
 
 **Accepted.** Recorded on 2026-09-14 during milestone 2. The user approved the proposed UI/runtime direction and explicitly requested separate application and n8n databases, EF Core migrations for the application, and no connection strings in the repository. See [the clarification](../../prompts/003-confirm-persistence-and-secret-handling.md). This is a design decision; no projects, packages, database setup, migrations, or secrets have been created.
 
+**DEV topology amendment:** [ADR-006](ADR-006-use-existing-shared-dev-infrastructure.md) supersedes the local-service topology and the requirement for this repository to create/manage two databases, including n8n internal persistence. Use the existing shared DEV services; only product persistence is in application scope. The original topology below is retained as history. Razor Pages, EF Core product migrations, and external secrets remain accepted.
+
 ## Context
 
-**Partially superseded:** [ADR-005](ADR-005-direct-database-integration-and-workflow-owned-delivery.md) replaces the HTTP integration and exclusive application access to the product database below. Razor Pages, two separate databases, EF Core migrations, and external secret configuration remain accepted. n8n now receives a separate credential for direct product-database access.
+**Milestone 2 ownership amendment (historical):** [ADR-005](ADR-005-direct-database-integration-and-workflow-owned-delivery.md) replaced the HTTP integration and exclusive application access to the product database below. At that point, Razor Pages, two separate databases, EF Core migrations, and external secret configuration were retained, and n8n received a separate product-access credential in the design. ADR-006 subsequently superseded the two-database provisioning and internal-persistence scope; the other retained choices remain current.
 
 The confirmed MVP is a local demo operated by one trusted operator with pre-created user and admin roles. Its proposed management interactions are alert forms and lists; the operational surface shows events and notification outcomes. No complex client-side interaction or independent frontend delivery requirement has been demonstrated.
 

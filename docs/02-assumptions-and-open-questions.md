@@ -1,14 +1,14 @@
 # Assumptions and open questions
 
-Milestone 2 register, recorded on 2026-09-14. Distinguish user-confirmed constraints, engineering decisions, and unvalidated planning assumptions. The original brief remains unchanged. Links below identify decisions made during the actual discussion, including superseded ownership proposals.
+Architecture register, recorded on 2026-09-14 and amended during milestone 3 preparation for the confirmed shared DEV environment. Distinguish user-confirmed constraints, engineering decisions, and unvalidated planning assumptions. The original brief remains unchanged. Links below identify decisions made during the actual discussion, including superseded ownership proposals.
 
 ## Confirmed constraints and current decisions
 
 - Email, Slack, configurable alerts, extensibility, and admin visibility come from the [product brief](00-product-brief.md).
-- The user confirmed a strictly local demo, one trusted operator, and pre-created user/admin roles (D-001).
+- D-001 confirmed one trusted operator and pre-created user/admin roles. [ADR-006](adr/ADR-006-use-existing-shared-dev-infrastructure.md) supersedes its strictly local service-deployment assumption: the management application remains local, while PostgreSQL and n8n use existing shared DEV infrastructure. Identity implementation remains deferred to its product milestone.
 - Earthquakes are the first slice. The user explicitly clarified that RSS in the workflow example did not change that choice.
 - The user accepted a common event envelope, validated type-specific data, and a supported typed field/operator condition after challenging source-specific hardcoding ([ADR-002](adr/ADR-002-canonical-events-and-typed-alert-conditions.md)).
-- Razor Pages, PostgreSQL with separate application/n8n databases, application EF Core migrations, and connection strings outside Git are accepted ([ADR-003](adr/ADR-003-server-rendered-application-and-isolated-persistence.md)).
+- Razor Pages, product PostgreSQL persistence, EF Core schema/migration ownership, and connection strings outside Git remain accepted under [ADR-003](adr/ADR-003-server-rendered-application-and-isolated-persistence.md). ADR-006 replaces the requirement to create/manage two databases: only the product database is in application scope; hosted n8n owns its internal persistence outside this repository.
 - The user requires automatic retries of uncertain external email/Slack sends and a circuit breaker, accepting possible duplicate external messages (D-002). The five-send example is a priority statement, not an attempt limit.
 - The user's later clarification and workflow sequence assign all event processing and delivery control to n8n with direct product-database access. The application manages conditions and the UI. No n8n/application HTTP layer or application-owned breaker exists in the current design ([ADR-005](adr/ADR-005-direct-database-integration-and-workflow-owned-delivery.md)).
 
@@ -53,7 +53,7 @@ See [the decision log](decision-log.md) for chronology. Earlier ADRs remain hist
 | Q-16 | UI | Razor Pages selected over native JS/TypeScript and Angular for current forms/lists. | Revisit if interaction complexity changes. |
 | Q-17 | Slack | One configured workspace/profile, allowlisted destinations. Actual workspace, credential scope, and permissions remain open. | Authorized Slack setup and tests. |
 | Q-18 | Email | One configured sender/profile. Provider, mechanism, sender setup, recipient allowlist, and error mapping remain open. | Authorized email setup and tests. |
-| Q-19 | Persistence/runtime | ASP.NET Core, EF Core migrations, separate PostgreSQL databases, and n8n direct product access. Compatible supported version matrix and concrete privilege/query contracts remain integration work. | Executable skeleton and relevant schema changes. |
+| Q-19 | Persistence/runtime | Local ASP.NET Core, EF Core product migrations, existing shared DEV PostgreSQL, and hosted n8n direct product access with separate credentials. The skeleton selects .NET/EF Core 10 and Npgsql EF provider 10.0.3. Host and container application readiness have passed. The supplied role was observed to be a superuser, and a host-side session audit reported no PostgreSQL TLS; the user accepted these current application DEV limitations under [ADR-007](adr/ADR-007-accept-current-dev-database-access.md). Restricted runtime access and verified secure transport remain required before production use. Concrete product privilege/query contracts belong to the schema/workflow milestone; see the skeleton validation record. Hosted n8n internal persistence is out of scope. | Executable skeleton and relevant schema/workflow milestones. |
 | Q-20 | Time budget | Time-constrained, but no numeric duration or production readiness target was supplied. MVP is one complete local slice with both channels and failure validation. | Committing to a dated schedule or expanding scope. |
 
 ## Updating this register

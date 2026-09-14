@@ -4,13 +4,13 @@ The original [brief](00-product-brief.md) establishes alerts, email, Slack, exte
 
 ## Current milestone
 
-Milestone 2 produces architecture, scope, ADRs, a delivery plan, validation strategy, and honest review records. No application code, projects, dependencies, migrations, Docker configuration, database setup, executable workflows, credentials, or external provider integration are created. Future implementation needs its own reviewed task plan.
+Milestone 2 completed the architecture baseline at `b68e3ad`. Milestone 3 implements the minimal application skeleton and its safe integration with existing DEV infrastructure, following [the current request](../prompts/010-create-application-skeleton.md) and [ADR-006](adr/ADR-006-use-existing-shared-dev-infrastructure.md). The user approved the [bounded skeleton specification](superpowers/specs/2026-09-14-application-skeleton-design.md); its [implementation plan](superpowers/plans/2026-09-14-application-skeleton.md) received independent review before application work. Only a root solution, minimal Razor Pages application under `src/`, EF Core/PostgreSQL infrastructure, external secret configuration, health checks, and verified setup documentation belong here. No product entities, meaningless empty migrations, product workflows, local service provisioning, authentication, or product features belong to this milestone. The product behavior below remains the later MVP target.
 
 ## Target users and deployment
 
 A single trusted operator demonstrates pre-created user and admin roles locally. A Development-only identity selector is sufficient; independent real-user login, enrollment, and a public pilot are deferred. Preserve owner/role boundaries in management operations without claiming that a selectable demo identity authenticates a real person.
 
-Use ASP.NET Core Razor Pages, EF Core migrations, n8n, and PostgreSQL. The product and n8n internal databases remain separate. n8n reads conditions and writes operational state directly in the product database using a dedicated runtime credential. The application owns configuration/management and operational reads; all event processing, transport retries, and circuit behavior belong in n8n. No n8n/application HTTP endpoints are needed.
+Use a local ASP.NET Core/Razor Pages management application, EF Core product migrations, the existing shared DEV PostgreSQL product database, and the hosted n8n runtime at `https://n8n.nasgard.io`. The application remains loopback-only in development; the hosted n8n editor follows its existing external access controls. Do not create or manage local service instances or n8n internal persistence. n8n reads conditions and writes operational state directly in the product database using a dedicated least-privilege runtime credential, separate from the application and migration roles. The application owns configuration/management and operational reads; all event processing, transport retries, and circuit behavior belong in n8n. No n8n/application HTTP endpoints are needed.
 
 ## Included product behavior
 
@@ -25,7 +25,7 @@ Use ASP.NET Core Razor Pages, EF Core migrations, n8n, and PostgreSQL. The produ
 - **Minimum operational admin:** inspect event processing, related delivery/attempt status, sanitized errors, next retry time, and circuit state. Workflow debugging and delivery recovery remain n8n operations; the admin is observational.
 - **Deterministic demonstration:** explicit synthetic source IDs/markers enter the same canonical workflow and persistence boundary. Use authorized isolated destinations; show nonmatches, duplicates, failures, retries, and recovery without waiting for an actual earthquake.
 
-Connection-string values, including examples, must not enter tracked files. Use User Secrets for local application/EF tooling and ignored local environment configuration for future Docker. n8n uses distinct stored credentials; exports and evidence must not contain their values.
+Connection-string values, including examples, must not enter tracked files. Use User Secrets for local application/EF tooling. The requested Docker option runs only the application, with an ignored `.env` and loopback host port; shared PostgreSQL/n8n remain external. The current application DEV access/transport exception is accepted under [ADR-007](adr/ADR-007-accept-current-dev-database-access.md); it does not extend to production. Future n8n product workflows use stored credentials; exports and evidence must not contain their values.
 
 ## Why earthquakes first
 

@@ -1,0 +1,17 @@
+**
+!global.json
+!src/
+!src/Sonrisa.Web/
+src/Sonrisa.Web/**
+!src/Sonrisa.Web/Sonrisa.Web.csproj
+!src/Sonrisa.Web/Program.cs
+!src/Sonrisa.Web/Data/
+src/Sonrisa.Web/Data/**
+!src/Sonrisa.Web/Data/AppDbContext.cs
+!src/Sonrisa.Web/Health/
+src/Sonrisa.Web/Health/**
+!src/Sonrisa.Web/Health/PostgresHealthCheck.cs
+!src/Sonrisa.Web/Pages/
+src/Sonrisa.Web/Pages/**
+!src/Sonrisa.Web/Pages/*.cshtml
+!src/Sonrisa.Web/appsettings.json

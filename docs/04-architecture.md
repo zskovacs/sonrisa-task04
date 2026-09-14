@@ -1,18 +1,29 @@
 # MVP architecture
 
-This is the milestone 2 design for a strictly local demo, not an implemented system. The user's corrected boundary in [ADR-005](adr/ADR-005-direct-database-integration-and-workflow-owned-delivery.md) is authoritative: the application manages conditions and presents the UI; n8n owns event processing and notification workflows and accesses the product database directly. There is no n8n/application HTTP integration.
+This is the milestone 2 product design, amended during milestone 3 preparation for the existing shared DEV environment under [ADR-006](adr/ADR-006-use-existing-shared-dev-infrastructure.md). The product is not implemented. The user's corrected boundary in [ADR-005](adr/ADR-005-direct-database-integration-and-workflow-owned-delivery.md) remains authoritative for processing: the application manages conditions and presents the UI; n8n owns event processing and notification workflows and accesses the product database directly. There is no n8n/application HTTP integration.
 
 ## Product and runtime shape
 
 A demo user configures an enabled earthquake alert with a magnitude threshold and one or both of the configured email/Slack destinations. n8n ingests events, evaluates supported conditions, records durable notification intent, and sends notifications with retry and circuit breaking. The admin sees events and delivery outcomes. Additional event types reuse the same supported contract and processing stages.
 
-Run one ASP.NET Core/Razor Pages application, one n8n runtime, and one PostgreSQL instance containing two separate databases. EF Core migrations own the product schema. n8n owns its internal schema. Runtime versions and external providers are selected during the relevant implementation tasks, before installation or integration.
+Run the ASP.NET Core/Razor Pages application locally on the developer machine, directly or in the requested application-only Docker container with loopback host publishing. Use the existing shared DEV PostgreSQL server for the product database and the existing n8n runtime at `https://n8n.nasgard.io`. Do not provision local PostgreSQL or n8n. Hosted n8n owns its internal persistence entirely outside this repository; its storage is not part of the application database design. EF Core migrations own only the product schema. Confirm compatible application/provider versions and secure product-database connectivity during skeleton implementation; inspect n8n capabilities when relevant without changing shared service configuration. The service locations are user-confirmed, not connectivity test results.
 
 ```mermaid
 flowchart LR
-    Operator[Local demo operator] --> UI[ASP.NET Core Razor Pages]
-    UI --> Services[Condition management and operational reads]
-    Services <-->|EF Core| ProductDB[(Product database)]
+    subgraph Local[Developer machine]
+        Operator[Local demo operator] --> UI[ASP.NET Core Razor Pages on loopback]
+        UI --> Services[Condition management and operational reads]
+    end
+    subgraph DEV[Existing shared DEV infrastructure]
+        ProductDB[(PostgreSQL product database)]
+        subgraph HostedN8N[n8n at https://n8n.nasgard.io]
+            Ingest[n8n ingest events]
+            Normalize[Canonical normalization and validation]
+            Evaluate[n8n evaluate pending events]
+            Deliver[n8n deliver pending notifications]
+        end
+    end
+    Services <-->|EF Core over secure DEV connection| ProductDB
     Sources[Earthquake source] --> Ingest[n8n ingest events]
     Demo[Explicitly synthetic fixtures] --> Normalize[Canonical normalization and validation]
     Ingest --> Normalize
@@ -21,12 +32,9 @@ flowchart LR
     Deliver[n8n deliver pending notifications] <-->|Claims, attempts and circuit state| ProductDB
     Deliver --> Slack[Slack]
     Deliver --> Email[Email]
-    Ingest -. n8n internal persistence .-> InternalDB[(Separate n8n internal database)]
-    Evaluate -. n8n internal persistence .-> InternalDB
-    Deliver -. n8n internal persistence .-> InternalDB
 ```
 
-The three n8n boxes are small scheduled responsibilities, not extra runtimes. Shared validation/transport steps may be reusable sub-workflows where they prevent duplication or permit independent tests. No generic workflow engine, broker, distributed cache, or extra worker service is needed.
+The diagram shows the future product flow; milestone 3 implements no product workflows. The three scheduled responsibilities share the existing hosted n8n runtime. Its internal persistence is outside this diagram and product contract. Shared validation/transport steps may be reusable sub-workflows where they prevent duplication or permit independent tests. No generic workflow engine, broker, distributed cache, or extra worker service is needed.
 
 ## Responsibility and database access
 
@@ -37,13 +45,12 @@ The three n8n boxes are small scheduled responsibilities, not extra runtimes. Sh
 | n8n evaluation | Read active conditions, evaluate the supported typed rule, create unique delivery intent, and complete event processing. | One short atomic database operation per event. No direct external notification call while this transaction is open. |
 | n8n delivery | Obtain due work, implement retries/circuit breaking, send email/Slack, and persist attempts/outcomes. | Workflow-owned logic and operational records. Application database storage does not imply application behavioral ownership. |
 | Product PostgreSQL database | Configuration, canonical events, processing state, delivery/attempt records, and per-profile circuit state. | EF migrations own schema. n8n runtime can read configuration and read/write operational records; it cannot alter schema or user conditions. |
-| n8n internal PostgreSQL database | Workflows, credentials, and n8n execution state. | n8n-managed schema; no custom product tables or undocumented internal-table queries. |
 
-Use distinct migration, application runtime, workflow product-access, and n8n internal access roles. They may share the PostgreSQL process, not credentials or unrestricted privileges. Explicit column projections, parameterized values, and database constraints form the integration contract. Review every breaking schema change with the affected workflow queries. Do not build a duplicate application API for symmetry.
+Use distinct least-privilege migration, application-runtime, and n8n product-workflow roles for the product database. [ADR-007](adr/ADR-007-accept-current-dev-database-access.md) permits the currently supplied application administrative credential for DEV only; production retains the restricted-role requirement. Outside that explicit DEV exception, runtime roles receive no schema-owner or superuser privileges; EF migration access is separate. Hosted n8n internal storage and its credentials are outside repository design, setup, and validation. Explicit column projections, parameterized values, and database constraints form the integration contract. Review every breaking schema change with the affected workflow queries. Do not build a duplicate application API for symmetry.
 
 ## Management, ownership, and destinations
 
-The local demo has pre-created user and admin identities. Use an explicit Development-only demo identity selector producing the selected identity/role; do not build signup, password reset, OAuth, or a full identity platform. The selector is an operator convenience, not proof of identity. Starting this demo mode outside the intended Development/local environment must fail until an appropriate access design exists. Expose the UI/n8n editor only on loopback; product database access stays on the local/internal network.
+The local demo has pre-created user and admin identities. Use an explicit Development-only demo identity selector producing the selected identity/role; do not build signup, password reset, OAuth, or a full identity platform. The selector is an operator convenience, not proof of identity. Starting this demo mode outside the intended Development/local environment must fail until an appropriate access design exists. Keep the local management UI on loopback. The hosted n8n editor uses its existing externally managed access controls; the previous loopback-only editor assumption is superseded by ADR-006. Application and future product-workflow database connections follow the shared DEV access requirements, with the current application credential and observed PostgreSQL TLS limitation accepted under ADR-007. Secure transport must be established before production use. This change does not implement or broaden application identity features.
 
 The management surface lists the selected user's alerts and supports creation, editing, and enabling/disabling. Validate ownership on each operation. An alert has an owner, name, enabled flag, event type, one supported field/operator/typed-value condition, and selected delivery destinations. The initial supported rule is earthquake magnitude greater than or equal to a finite numeric threshold. Do not invent scientific range limits or restrict the configured threshold to provider-side feed filters. Reject unsupported fields/operators, invalid values, and empty destination selections.
 
@@ -113,7 +120,7 @@ Permanent destination errors fail that delivery without blocking other destinati
 
 ## Workflow-owned circuit breaker
 
-Persist the circuit state in workflow-owned operational records in the product database, separate from alert configuration. EF migrations may create these records' schema, and the admin may display them; all state-machine behavior remains in n8n workflows. Do not write custom tables into n8n's internal database or use per-execution memory as durable circuit state.
+Persist the circuit state in workflow-owned operational records in the product database, separate from alert configuration. EF migrations may create these records' schema, and the admin may display them; all state-machine behavior remains in n8n workflows. Hosted n8n internal persistence is outside the product contract; neither that storage nor per-execution memory is the source of truth for product circuit state.
 
 Scope the circuit to a configured transport profile, initially one Slack workspace/credential profile and one email sender profile. Opening Slack must not open email. Use a small state machine:
 
@@ -143,12 +150,12 @@ Transient/uncertain retries have no arbitrary terminal attempt count in this des
 
 The admin surface shows recent events and processing state, linked deliveries, attempts/errors, next retry eligibility, and circuit state/recovery time. Display occurrence time and synthetic markers. Show n8n execution references where recorded, but do not replicate its workflow debugger or imply that an old last-event timestamp proves source failure.
 
-Use controlled synthetic canonical events through the same normalization/validation and persistent processing boundary as real source data. Reserve synthetic source IDs, use distinct IDs per demo case, and restrict injection to an explicit local/manual n8n entry. Keep live ingestion disabled during deterministic runs and use only authorized allowlisted email/Slack destinations. Replay the same synthetic ID to prove deduplication; use a new ID to demonstrate another legitimate notification. No direct database insertion of finished matches or Sent records is a demo shortcut.
+Use controlled synthetic canonical events through the same normalization/validation and persistent processing boundary as real source data. Reserve synthetic source IDs, use distinct IDs per demo case, and restrict injection to an explicit operator-controlled manual entry in this project's n8n workflows. Keep this project's live ingestion disabled during deterministic runs and use only authorized allowlisted email/Slack destinations. Replay the same synthetic ID to prove deduplication; use a new ID to demonstrate another legitimate notification. No direct database insertion of finished matches or Sent records is a demo shortcut.
 
-Retain product events, attempts, and delivery identity for the demo until an explicit operator reset of the isolated demo dataset. No automatic retention cleanup is included, because deleting deduplication keys could permit resend on replay. n8n's execution retention is a separate setting; product state remains authoritative. Long-running retention, expiry of stale notifications, and production operational budgets remain future decisions.
+Retain product events, attempts, and delivery identity for the demo until an explicit operator reset of the isolated demo dataset. No automatic retention cleanup is included, because deleting deduplication keys could permit resend on replay. Hosted n8n execution retention is externally managed and outside this repository; product state remains authoritative. Any future demo reset must target only an explicitly isolated product dataset and leave unrelated shared DEV data and workflows untouched. Long-running retention, expiry of stale notifications, and production operational budgets remain future decisions.
 
 ## Configuration and remaining integration decisions
 
-Connection-string values are absent from tracked files, including examples, migrations/helpers, prompts, logs, and exports. Application runtime and EF tooling use User Secrets locally; future Docker configuration references an ignored `.env`. n8n product-database, internal-database, and notification credentials remain separately configured. Missing settings fail visibly without logging values or falling back to embedded connections.
+Connection-string values are absent from tracked files, including examples, migrations/helpers, prompts, logs, and exports. Application runtime and EF tooling use User Secrets locally. The requested application-only Docker option loads runtime settings from an ignored `.env`; shared PostgreSQL/n8n remain external. Future n8n product-database and notification credentials use its credential store; internal-storage credentials are outside this repository's scope. In the skeleton, missing or invalid product-database settings leave the shell and liveness running while readiness reports Unhealthy. Missing settings produce a startup warning naming the key; connection failures use sanitized health descriptions. There is no embedded fallback or secret-bearing diagnostic.
 
-Provider selection, usable stable IDs and feed window, polling quotas, sender/workspace setup, transport error mapping, and compatible supported versions must be verified in their implementation milestones. No provider, account, external API, deployment, package, or executable workflow is selected or configured here. Before implementation, review the explicit first-snapshot/update and current-rule timing assumptions against the intended demo.
+Provider selection, usable stable IDs and feed window, polling quotas, sender/workspace setup, transport error mapping, and compatible supported versions must be verified in their implementation milestones. The DEV service topology is selected under ADR-006. The skeleton specification pins compatible application packages; [the validation record](../evidence/reviews/2026-09-14-skeleton-review.md) distinguishes actual MCP connectivity from application readiness. No event provider, notification account, or executable product workflow is selected or configured here. Before implementation, review the explicit first-snapshot/update and current-rule timing assumptions against the intended demo.

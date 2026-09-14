@@ -1,6 +1,6 @@
 # Validation strategy
 
-These are future checks for the milestone 2 architecture baseline. No application tests, database, executable workflows, or runtime failure experiments exist. [ADR-005](adr/ADR-005-direct-database-integration-and-workflow-owned-delivery.md) supersedes the earlier application ingestion/delivery API plan: n8n accesses the product database directly and implements retry/circuit-breaker behavior.
+These are future product checks for the architecture baseline, amended for shared DEV under [ADR-006](adr/ADR-006-use-existing-shared-dev-infrastructure.md). The skeleton uses focused real-process and CLI/IDE checks; no business-test suite or executable product workflows exist. See [the skeleton evidence](../evidence/reviews/2026-09-14-skeleton-review.md) for actual completed checks and pending validation. MCP connectivity alone does not validate product-database identity, application credentials, or readiness. [ADR-005](adr/ADR-005-direct-database-integration-and-workflow-owned-delivery.md) supersedes the earlier application ingestion/delivery API plan: n8n accesses the product database directly and implements retry/circuit-breaker behavior.
 
 ## Acceptance method
 
@@ -16,7 +16,7 @@ Use controlled events, fixed time where relevant, and isolated notification dest
 ## PostgreSQL and management integration checks
 
 - Apply EF migrations to the application database only. Verify compatibility of the resulting schema with n8n's explicit queries and the management/admin reads.
-- Verify separate credentials and permissions for application runtime, workflow product-data access, migration tooling, and n8n internal storage. n8n's product credential must not require schema-owner or superuser access.
+- Verify separate least-privilege credentials and permissions for application runtime, n8n product-data access, and migration tooling. Runtime credentials must not require schema-owner or superuser access. Do not create, inspect, or validate hosted n8n internal storage or its credentials; these are externally managed and outside this project.
 - Test parameterized queries, valid condition storage, duplicate event/intent uniqueness, concurrent processing, and replay after an ambiguous database commit.
 - Validate the final transaction boundary with real PostgreSQL. Do not substitute an EF in-memory provider for relational correctness or assume that multiple workflow nodes share a transaction.
 - Prove recoverability if an execution stops between event acceptance, matching, and durable notification creation. Pending event evaluation and Pending delivery scheduling must recover it without another new source event.
@@ -37,7 +37,7 @@ Use controlled events, fixed time where relevant, and isolated notification dest
 
 Configure an alert through Razor Pages, inject a controlled canonical event through the agreed workflow entry, evaluate it, persist its delivery intent, send to authorized Slack/email test destinations, and inspect the result in the admin surface. Repeat with a non-match and a duplicate. Use a real provider path later to complement the deterministic demonstration.
 
-Fail Slack while email remains available. Observe independent circuit behavior, retained pending work, a recovery probe, and eventual resumed attempts. Restart the relevant components while work is pending or the circuit is open.
+In future delivery validation, simulate Slack failure in isolated product test work while email remains available. Observe independent circuit behavior, retained pending work, a recovery probe, and eventual resumed attempts. Do not restart shared DEV n8n/PostgreSQL or disrupt unrelated workflows. Shared-service crash/restart experiments require a separately authorized isolated environment; stopping and restarting the local application can be tested independently.
 
 Simulate provider acceptance followed by a lost acknowledgement, or n8n stopping before recording success. Verify automatic recovery/retry and report possible duplicate external messages honestly. This duplicate risk is accepted by the user; duplicated internal event/notification records remain defects. A provider acknowledgement is not proof of inbox placement or human receipt.
 
@@ -51,6 +51,8 @@ Check missing/invalid settings and timing parameters without printing their valu
 
 Store only actual screenshots, test output, and meaningful review notes in the existing evidence directories. Include the tested revision, procedure/command, expected and observed results, and limitations. Inspect for secrets and personal data; identify redactions. Record material corrections in [the AI review log](ai-review-log.md).
 
-## Checks for the design milestone
+## Checks for the topology amendment and skeleton milestone
 
-Inspect documentation consistency, links, decision status, scope, and the revised n8n/application/database ownership. Review source/type extensibility, condition semantics, durable state, retry/circuit placement, schema coupling, and transaction/replay behavior. Verify that implementation has not started and unrelated work remains unchanged. Run focused whitespace/link checks and the required final architecture review before the milestone commit. No build or runtime test command exists to run yet. The original rejected HTTP/application-gate design must not reappear in active scope or acceptance checks.
+For the topology amendment, inspect documentation consistency, links, supersession status, scope, and preservation of the existing n8n/application/product-database ownership. Verify that no premature application scaffolding or product implementation exists and unrelated work remains unchanged. Run focused whitespace/link checks and the required review. The topology review preceded application scaffolding; its historical evidence does not validate the subsequent skeleton. The original rejected HTTP/application-gate design must not reappear in active scope or acceptance checks.
+
+For the current skeleton, verify the root solution and `src/` project layout in Rider, compatible application dependencies, clean build, Razor Pages response, local startup/restart, environment-aware configuration, and application liveness. Validate product PostgreSQL connectivity through safe runtime configuration when available; report database readiness separately from liveness. Check missing configuration without exposing secrets. Do not generate product entities or empty migrations to demonstrate connectivity, and do not create workflows or provision services. Validate the requested application-only Docker build, non-root execution, loopback host publishing, environment-file handling, and the same health semantics without duplicating shared services. Record only setup commands actually exercised. Later product failure/contract checks above are not skeleton acceptance requirements.
