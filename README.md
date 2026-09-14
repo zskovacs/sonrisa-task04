@@ -2,7 +2,7 @@
 
 A product for user-configured alerts about important world events, with email and Slack notifications, room for future delivery channels, and an admin view.
 
-**Status: planning and repository bootstrap.** Implementation has intentionally not started. The product brief is incomplete; event sources, alert semantics, persistence design, and UI technology remain open. n8n is the selected orchestration layer.
+**Status: architecture and product design (milestone 2).** Implementation has intentionally not started. The accepted direction is a local demo using n8n, one ASP.NET Core application with Razor Pages, and separate application/n8n PostgreSQL databases. EF Core migrations manage application persistence. n8n owns event processing and delivery through direct product-database access; the application manages conditions and operational views. See the scope for explicit demo assumptions and remaining integration choices.
 
 ## Start here
 

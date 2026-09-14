@@ -1,33 +1,56 @@
-# Initial validation strategy
+# Validation strategy
 
-This document describes future checks. No application tests, running infrastructure, or executable n8n workflows exist in this baseline. Documentation inspection is not evidence of runtime correctness. Test tools and commands will be selected with the application stack and recorded when they actually exist.
+These are future checks for the milestone 2 architecture baseline. No application tests, database, executable workflows, or runtime failure experiments exist. [ADR-005](adr/ADR-005-direct-database-integration-and-workflow-owned-delivery.md) supersedes the earlier application ingestion/delivery API plan: n8n accesses the product database directly and implements retry/circuit-breaker behavior.
 
 ## Acceptance method
 
-Agree observable examples with the product owner before implementing the first slice. Use controlled inputs, fixed time where relevant, and isolated notification destinations for repeatable validation. Keep fast deterministic checks near domain logic; exercise real persistence/API contracts and selected n8n integrations at their boundaries. Include failure paths from the first implementation task.
+Use controlled events, fixed time where relevant, and isolated notification destinations. Verify the same canonical processing and delivery paths used by live ingestion. Keep configuration validation testable, and validate workflow/database contracts with the actual relational engine. Use the current workflow-owned contracts in the architecture; verify implementation-specific query/node behavior before accepting results.
 
-| Area | Future check | Evidence to capture when performed |
-| --- | --- | --- |
-| Deterministic domain logic | Unit-test agreed matching/non-matching cases, supported boundaries, missing values, and invalid rules. Do not invent semantics in tests. | Actual focused command, revision, and output. |
-| Persistence/API boundaries | Integration-test canonical validation, durable writes, ownership/access checks, and the agreed transaction and restart behavior. | Actual results with environment and relevant contracts identified. |
-| Workflow validation | Inspect exported JSON, verify import/execution with the selected n8n version, check mappings and credential references, and exercise success/error branches. | Reviewed export revision and actual execution or validation notes. A parse check alone is insufficient. |
-| Duplicate source events | Replay the same source event and exercise concurrent/repeated ingestion under the agreed identity/update rules. | Observed event/evaluation outcomes compared with the agreed policy. |
-| Duplicate notifications | Replay evaluation and delivery work, including concurrency and restart, and verify one intended delivery per agreed identity. Separately test transport-level duplicate risks. | Actual delivery records and observed sends, with limitations identified. |
-| Temporary failure and retry | Make transport fail temporarily, recover, and observe retry limits and durable outcomes. Also exercise exhaustion and success followed by a lost acknowledgement. | Failure/recovery observations and any uncertain outcome, without claiming exactly-once delivery unless established. |
-| Malformed external input | Submit invalid or incomplete payloads and unsupported values at the canonical boundary. | Rejection/handling outcome and confirmation that invalid input cannot silently produce an unintended notification. |
-| Unavailable source | Exercise timeout, unavailable-source, or rate-limit behavior for the chosen integration. | Observed error visibility, recovery, and subsequent ingestion behavior. |
-| Configuration | Check missing/invalid settings and credential references; verify that configuration errors surface clearly without leaking secrets. | Actual validation output with sensitive data excluded. |
-| Basic security | Inspect committed files, exports, fixtures, prompts, and logs for secrets; verify agreed user/admin permissions, ingress authentication where required, and safe handling of untrusted content in the UI and notifications. | Actual inspection notes and focused security checks; avoid claiming a comprehensive audit. |
-| Manual end-to-end path | Configure an alert through the chosen UI, ingest a controlled matching event, deliver to authorized email and Slack test destinations, and inspect the result in the admin surface. Include a non-match, a duplicate, and a temporary delivery failure. | Actual demo steps, outcomes, and optional real screenshots, linked to the tested revision. |
+## Unit and deterministic logic checks
 
-When real sources and credentials are available, complement controlled fixtures with a real source-to-channel demonstration. Label a simulated or stubbed result as such. External sends must use destinations explicitly authorized for testing. Missing credentials or unavailable services are recorded blockers, not passing tests.
+- Application condition management: supported event type, allowed field/operator/value combinations, enabled state, ownership, and invalid destination selection.
+- Matching correctness: threshold boundaries, non-matches, missing/invalid data, and unsupported conditions. The supported evaluator is a workflow-owned PostgreSQL operation; verify it with controlled database fixtures and do not create a duplicate application matching engine merely to obtain unit tests.
+- When reusable pure workflow logic exists, test it independently with controlled inputs. Otherwise validate the matching sub-workflow through a defined input/output contract. Keep that distinction visible in evidence.
+- Retry and circuit behavior: deterministic classification, due times, Closed/Open/Half-open transitions, independent Slack/email failure domains, and the recovery probe. These are workflow responsibilities, not tests of an application-owned breaker.
 
-## Evidence and review discipline
+## PostgreSQL and management integration checks
 
-Store genuine screenshots in `evidence/screenshots/`, actual test output in `evidence/test-output/`, and substantive review/validation notes in `evidence/reviews/`. Include date, tested revision or precise change description, command/procedure, expected and actual outcomes, and limitations. Inspect for secrets and personal data before committing; label any redaction or omission. Do not create artificial evidence to populate directories.
+- Apply EF migrations to the application database only. Verify compatibility of the resulting schema with n8n's explicit queries and the management/admin reads.
+- Verify separate credentials and permissions for application runtime, workflow product-data access, migration tooling, and n8n internal storage. n8n's product credential must not require schema-owner or superuser access.
+- Test parameterized queries, valid condition storage, duplicate event/intent uniqueness, concurrent processing, and replay after an ambiguous database commit.
+- Validate the final transaction boundary with real PostgreSQL. Do not substitute an EF in-memory provider for relational correctness or assume that multiple workflow nodes share a transaction.
+- Prove recoverability if an execution stops between event acceptance, matching, and durable notification creation. Pending event evaluation and Pending delivery scheduling must recover it without another new source event.
+- Verify persistent notification/circuit state across workflow and process restarts in the product database, including restart while Open or Half-open.
+- Test relevant role/ownership checks at the management boundary. Local demo roles must not be represented as production authentication.
 
-For each material change, inspect the diff, run the smallest applicable check, and review before acceptance. Escalate meaningful failures, update assumptions when evidence contradicts them, and record substantive AI corrections in [the AI review log](ai-review-log.md). Finish with whole-change review against agreed scope and a reflection based on actual results.
+## Workflow-level validation
 
-## Checks applicable to this baseline
+- Review and export definitions to Git; validate schema, inspect wiring, and exercise import/execution against the selected n8n version. JSON parsing alone is insufficient.
+- Test source normalization and canonical validation with malformed, missing, unsupported, duplicate, and updated input. An unavailable source must produce an observable failure and allow subsequent recovery without stopping pending evaluation/delivery. Test first-snapshot duplicates with changed provider payload explicitly; no re-evaluation is expected under A-02.
+- Test the workflow/database interface, not the superseded n8n/application HTTP API. External source/provider HTTP contracts still require authoritative documentation and focused tests.
+- Verify transient database failure handling and idempotent replay where work may already have committed. Removing HTTP does not make SQL operations infallible.
+- Test send retries through the workflow-owned circuit, including rate limits, temporary outage, shared credential failure, invalid destination, and unclassified errors. Avoid retry paths that skip the circuit or lose persistent attempt accounting.
+- Under an open circuit, verify retained pending work and no new external send until a permitted probe. Test concurrent runs and independent channel recovery including a neutral permanent-destination probe outcome, expired probe recovery, and stale outcomes from older attempts.
+- Inspect exports, pinned data, credentials, and execution logs for secrets. Record exactly which nodes were mocked; workflow test tools can still execute real side effects.
 
-Review documentation consistency, links, distinction between facts/proposals/open questions, n8n rationale and boundaries, deferred UI choice, scope exclusions, prompt-history rules, and absence of implementation or fabricated evidence. Verify that placeholders are minimal, existing work is preserved, and the staged diff contains only bootstrap files. Run Git whitespace checks before committing. Record only checks actually performed; do not invent build or test commands for an application that does not exist.
+## Manual end-to-end and failure validation
+
+Configure an alert through Razor Pages, inject a controlled canonical event through the agreed workflow entry, evaluate it, persist its delivery intent, send to authorized Slack/email test destinations, and inspect the result in the admin surface. Repeat with a non-match and a duplicate. Use a real provider path later to complement the deterministic demonstration.
+
+Fail Slack while email remains available. Observe independent circuit behavior, retained pending work, a recovery probe, and eventual resumed attempts. Restart the relevant components while work is pending or the circuit is open.
+
+Simulate provider acceptance followed by a lost acknowledgement, or n8n stopping before recording success. Verify automatic recovery/retry and report possible duplicate external messages honestly. This duplicate risk is accepted by the user; duplicated internal event/notification records remain defects. A provider acknowledgement is not proof of inbox placement or human receipt.
+
+Inspect event/notification linkage, attempt details, failure state, and circuit/retry visibility where exposed by the final operational data contract. Admin displays must not silently take over workflow retry/circuit behavior.
+
+External sends require explicitly authorized test destinations. Missing credentials or unavailable services are blockers for those checks, not passing tests. Label fixtures and simulated results clearly; no synthetic event should be mistaken for a real report.
+
+## Configuration and evidence safety
+
+Check missing/invalid settings and timing parameters without printing their values. Connection-string values must be absent from every tracked artifact, including examples, migration helpers, exports, logs, prompts, and evidence. Application and EF tooling obtain values from external configuration; n8n uses credentials. Do not claim that ignored files alone establish secret safety.
+
+Store only actual screenshots, test output, and meaningful review notes in the existing evidence directories. Include the tested revision, procedure/command, expected and observed results, and limitations. Inspect for secrets and personal data; identify redactions. Record material corrections in [the AI review log](ai-review-log.md).
+
+## Checks for the design milestone
+
+Inspect documentation consistency, links, decision status, scope, and the revised n8n/application/database ownership. Review source/type extensibility, condition semantics, durable state, retry/circuit placement, schema coupling, and transaction/replay behavior. Verify that implementation has not started and unrelated work remains unchanged. Run focused whitespace/link checks and the required final architecture review before the milestone commit. No build or runtime test command exists to run yet. The original rejected HTTP/application-gate design must not reappear in active scope or acceptance checks.

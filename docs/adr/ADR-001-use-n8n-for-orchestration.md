@@ -4,6 +4,8 @@
 
 **Accepted.** Recorded on 2026-09-14 from the supplied architectural direction. This records a decision already made, not an implementation outcome. No orchestration prototype, workflow, or comparative benchmark has been produced in this repository.
 
+**Milestone 2 update:** n8n remains selected. [ADR-005](ADR-005-direct-database-integration-and-workflow-owned-delivery.md) supersedes the application/event-boundary ownership described below following the user's explicit direction to use direct database integration and workflow-owned delivery control. The original rationale is retained as historical context.
+
 ## Context
 
 The [product brief](../00-product-brief.md) calls for configurable alerts about important world events, email and Slack delivery, later channel extensibility, and an admin view. Event sources, importance rules, scale, UI needs, and detailed contracts are not yet specified. The work is time-boxed and should favor a useful end-to-end slice and maintainability over feature count.

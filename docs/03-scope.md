@@ -1,40 +1,83 @@
-# Initial scope proposal
+# MVP scope
 
-The product needs in [the brief](00-product-brief.md) are known. The MVP below is an engineering proposal to narrow those needs; detailed acceptance criteria are not agreed. Confirm the first scenario through [the open questions](02-assumptions-and-open-questions.md) before implementation.
+The original [brief](00-product-brief.md) establishes alerts, email, Slack, extensibility, and admin visibility. This document defines a deliberately narrow implementation target using the user-confirmed architecture and explicit [planning assumptions](02-assumptions-and-open-questions.md). It does not turn untested assumptions into discovered product requirements.
 
-## Current task: repository baseline only
+## Current milestone
 
-Create working rules, the brief, plan, scope, question register, initial architecture, n8n ADR, validation strategy, log formats, and reserved directories. Reach only the first milestone commit.
+Milestone 2 produces architecture, scope, ADRs, a delivery plan, validation strategy, and honest review records. No application code, projects, dependencies, migrations, Docker configuration, database setup, executable workflows, credentials, or external provider integration are created. Future implementation needs its own reviewed task plan.
 
-Do not create production code, .NET projects/solutions, frontend applications, npm packages, Docker services, PostgreSQL configuration, executable n8n workflows, authentication, alert models, or notification delivery. Do not install packages or select external APIs. Follow the current [prompt-history policy](../prompts/README.md) for the retained initialization request and subsequent product work.
+## Target users and deployment
 
-## Proposed MVP
+A single trusted operator demonstrates pre-created user and admin roles locally. A Development-only identity selector is sufficient; independent real-user login, enrollment, and a public pilot are deferred. Preserve owner/role boundaries in management operations without claiming that a selectable demo identity authenticates a real person.
 
-- One narrow, useful end-to-end scenario before expanding event or source coverage. Select the scenario explicitly; the illustrative subject areas are not three required integrations.
-- n8n for orchestration and external integrations, with small workflows reviewed and exported to Git when implemented.
-- A canonical event concept with explicit validation and duplicate handling; actual fields and identity rules remain open.
-- User-configurable alerts with only the rule behavior needed by the agreed scenario. No complex rules language is assumed.
-- Email and Slack delivery through an extensible notification-channel boundary. Adding a future channel should not require redesigning matching.
-- Durable state for the necessary product and delivery records, with agreed idempotency, failure, retry, and recovery behavior. No database or exactly-once transport guarantee is selected.
-- A minimal alert-management surface and an operational admin surface. Exact workflows and access rules need agreement. Prefer the smallest suitable UI; Angular is not selected.
-- Repeatable fixtures and a deterministic demo/test path, complemented by a later real integration demonstration. Make limitations and delivery outcomes observable.
+Use ASP.NET Core Razor Pages, EF Core migrations, n8n, and PostgreSQL. The product and n8n internal databases remain separate. n8n reads conditions and writes operational state directly in the product database using a dedicated runtime credential. The application owns configuration/management and operational reads; all event processing, transport retries, and circuit behavior belong in n8n. No n8n/application HTTP endpoints are needed.
 
-The initial value target is a complete path from a configured alert through a matching event to a delivered notification and an inspectable outcome, including both required channels before MVP acceptance. This is a proposed acceptance direction, not an implemented capability.
+## Included product behavior
+
+- **One initial real event type:** earthquakes from one provider selected later. The user confirmed that RSS in the example described ingestion generally, not a switch to news.
+- **Configurable alerts:** owner, name, enabled state, one supported condition, and email and/or Slack destination selection. Initially the condition is earthquake magnitude greater than or equal to a user-selected finite numeric threshold. Unsupported fields/operators/values are rejected.
+- **Reusable event/rule boundary:** distinguish provider identity from canonical event type; use a common envelope and validated type-specific data. Another provider of the same type reuses its contract. New business meanings may need new logic, not a duplicate processing pipeline.
+- **Durable event processing:** unique source/external-event identity and Pending/Evaluated state. Retry unfinished evaluation even when the event is no longer new. Read one consistent rule snapshot and atomically create unique delivery intents and mark evaluation complete.
+- **Durable delivery:** one intent per event/alert/channel, including an immutable matched-content/destination snapshot. Independent scheduled delivery does not depend on new event arrival. Include attempt/outcome records and visible permanent failures.
+- **Slack and email:** Slack proves the first external slice; email completes the required MVP and validates the channel boundary. One configured workspace and one sender profile, with allowlisted demo destinations and at most one destination per selected channel on an alert.
+- **Workflow-owned retries and circuit breaker:** retry transient/uncertain sends automatically with backoff, accepting possible external duplicates as the user requested. Keep independent persistent circuits per transport profile, pause calls while Open, and permit one recovery probe. No application-owned gate or retry service.
+- **Minimum management:** list, create, edit, enable, and disable own alerts through Razor Pages. Hard deletion and historical rematching are not required.
+- **Minimum operational admin:** inspect event processing, related delivery/attempt status, sanitized errors, next retry time, and circuit state. Workflow debugging and delivery recovery remain n8n operations; the admin is observational.
+- **Deterministic demonstration:** explicit synthetic source IDs/markers enter the same canonical workflow and persistence boundary. Use authorized isolated destinations; show nonmatches, duplicates, failures, retries, and recovery without waiting for an actual earthquake.
+
+Connection-string values, including examples, must not enter tracked files. Use User Secrets for local application/EF tooling and ignored local environment configuration for future Docker. n8n uses distinct stored credentials; exports and evidence must not contain their values.
+
+## Why earthquakes first
+
+| Candidate | Assessment for the first slice |
+| --- | --- |
+| Earthquake | A numeric threshold demonstrates structured normalization, identity, matching, and delivery with little interpretation. A [documented structured feed example](https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php) includes magnitude, occurrence/update times, and IDs; this is capability evidence, not provider selection. |
+| RSS/news | Keyword matching is plausible, but its usefulness and text semantics need product decisions; the [RSS specification](https://www.rssboard.org/rss-specification) makes item identifiers optional, so provider identity handling needs care. A second type can validate extension after the MVP. |
+| Market movement | Requires choosing reference price, measurement window, and data availability before the threshold has a stable meaning. Defer that extra semantic work. |
+
+The user confirmed earthquakes after comparing these options and later clarified that the RSS workflow example did not change the selected slice.
+
+## First complete slice and observable examples
+
+Create an enabled alert with threshold 5.0 before submitting controlled events:
+
+1. Magnitude 4.9 is accepted/evaluated but creates no delivery.
+2. Magnitude 5.0 creates one delivery per selected channel.
+3. Replaying its source/external ID creates neither another event nor another intent.
+4. Stopping after event insertion leaves Pending work; a later evaluation run completes it.
+5. Rolling back evaluation leaves no partial intent/completion state.
+6. A Slack outage retains pending Slack work and opens only its circuit; email remains eligible.
+7. After cooldown, one permitted probe checks recovery; successful delivery and its recorded outcome are visible.
+8. A lost send acknowledgement leads to a retry and may produce a duplicate external message. The internal intent remains unique.
+
+These are acceptance examples to implement and test, not claims that those results exist. The first end-to-end demonstration may use seeded conditions before the management milestone; final MVP acceptance includes the Razor Pages configuration journey and both delivery channels.
+
+## Explicit planning limitations
+
+- Keep the first valid accepted snapshot per source/external ID. Provider corrections/retractions, including later magnitude threshold crossings, are not re-evaluated in this MVP. This is a deliberate simplifying assumption with a real missed-update limitation, not a discovered user requirement.
+- Evaluate rules current at atomic evaluation time; edits before a pending event is processed can affect it. Do not retrospectively evaluate completed events after creating/editing an alert.
+- The first poll processes the selected provider's bounded feed window, potentially including earlier occurrences. No additional historical archive import or completeness/latency guarantee is included.
+- Keep product event/intent identity until an explicit isolated demo reset. Automatic retention/deletion and notification expiry are deferred; long outages can leave old pending notifications.
+- The architecture provides durable recoverable attempts, not guaranteed provider availability, inbox placement, human receipt, or exactly-once external delivery.
+
+The architecture documents configurable demo timing defaults, input-contract constraints to finalize with implementation, and failure classification requirements. Validate these against the actual selected nodes/providers; do not quietly relax recovery semantics to make a demo pass.
 
 ## Stretch goals
 
-Consider these only if the agreed slice is complete, validated, and there is remaining time and demonstrated value:
+Only after the complete slice, both channels, and failure validation are working:
 
-- Additional event/source types or simple rule operators.
-- Additional operator convenience, such as a carefully bounded recovery action, if it is not already required by the agreed failure contract.
-- Additional UI polish after essential user and admin journeys work.
+- A second source type such as news with a supported text comparison, to exercise extension in code/workflows rather than claim it from a diagram.
+- Another provider of the existing earthquake type.
+- Additional simple operators or operator convenience with a demonstrated use case.
 
-## Explicit non-goals and deferred work
+The second source type is explicitly outside the MVP. Do not build unused generic rules or form-generation infrastructure in anticipation of it.
 
-Sophisticated rule DSLs, geospatial rules, LLM-based importance classification, microservices, Kubernetes, RabbitMQ, event streaming platforms, a custom workflow engine, high-availability infrastructure, cloud infrastructure, large-scale streaming architecture, complex multi-tenant Slack OAuth, SMS/push, and production-grade identity platforms are deferred. Reconsider them only for a demonstrated requirement with documented alternatives and costs.
+## Deferred work
 
-Deferring a full identity platform does not decide that access is anonymous or remove authorization needs. Deferring complex Slack OAuth does not decide workspace ownership. Both remain open and must be resolved before exposing the affected behavior.
+Production-grade identity, public hosting, extensive user administration, complex multi-tenant Slack OAuth, SMS/push, geospatial filtering, arbitrary/nested rules, runtime LLM importance classification, microservices, brokers/streaming platforms, Kubernetes, distributed caches, CQRS infrastructure, event sourcing, high availability, cloud infrastructure, and a custom workflow engine are deferred. Reconsider only for a demonstrated requirement and an ADR where architectural.
+
+The application HTTP integration and application-owned event/circuit services were explicitly superseded during design; they are not hidden prerequisites for this MVP. [ADR-005](adr/ADR-005-direct-database-integration-and-workflow-owned-delivery.md) records that correction.
 
 ## Scope change rule
 
-Record the requirement or observation driving a change, its effect on time and validation, and the simpler alternatives considered. Review the changed scope and update the plan before implementing it. Keep useful ideas outside the current milestone as future work.
+Record the observation or requirement, its effect on implementation/validation/time, and simpler alternatives before expanding the scope. Preserve meaningful corrections and rejected proposals in their actual context. A useful future feature is future work until deliberately included in a milestone.

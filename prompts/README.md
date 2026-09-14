@@ -4,7 +4,7 @@ This directory starts with the [original repository initialization request](001-
 
 Exclude routine technical and repository housekeeping, including tooling or skill setup, ignore rules, Git maintenance, standalone file deletion or renaming, formatting, prompt-history maintenance, and reviews limited to those tasks. Apply the same criterion to delegated prompts.
 
-Follow [AGENTS.md](../AGENTS.md#2-prompt-history). The next qualifying prompt receives `002`; continue with the next number after the highest existing record. Keep existing numbers stable unless the user explicitly requests a reset.
+Follow [AGENTS.md](../AGENTS.md#2-prompt-history). Use the next number after the highest existing record. Keep existing numbers stable unless the user explicitly requests a reset.
 
 Each record contains only `Date: YYYY-MM-DD`, `Purpose: <task purpose>`, and the prompt text, separated by blank lines. Do not add a title, prompt-section heading, or enclosing code fence. Write the purpose as a concise description of the requested work without translation or source-language notes.
 

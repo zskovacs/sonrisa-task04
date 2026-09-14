@@ -1,45 +1,61 @@
 # Assumptions and open questions
 
-Initial register: 2026-09-14. No answers have been agreed for the questions below. “Resolve before” identifies the dependency, not a promised date. Update a row when an answer is actually obtained and link the decision or supporting evidence.
+Milestone 2 register, recorded on 2026-09-14. Distinguish user-confirmed constraints, engineering decisions, and unvalidated planning assumptions. The original brief remains unchanged. Links below identify decisions made during the actual discussion, including superseded ownership proposals.
 
-## Known facts and accepted direction
+## Confirmed constraints and current decisions
 
-The [brief](00-product-brief.md) requires user-configured alerts, email and Slack notifications, extensibility for later channels, and an admin view. The work is time-boxed. [ADR-001](adr/ADR-001-use-n8n-for-orchestration.md) accepts n8n for orchestration, with domain concerns and durable product state kept outside complex visual workflow logic where appropriate. These do not define alert semantics or select an application stack.
+- Email, Slack, configurable alerts, extensibility, and admin visibility come from the [product brief](00-product-brief.md).
+- The user confirmed a strictly local demo, one trusted operator, and pre-created user/admin roles (D-001).
+- Earthquakes are the first slice. The user explicitly clarified that RSS in the workflow example did not change that choice.
+- The user accepted a common event envelope, validated type-specific data, and a supported typed field/operator condition after challenging source-specific hardcoding ([ADR-002](adr/ADR-002-canonical-events-and-typed-alert-conditions.md)).
+- Razor Pages, PostgreSQL with separate application/n8n databases, application EF Core migrations, and connection strings outside Git are accepted ([ADR-003](adr/ADR-003-server-rendered-application-and-isolated-persistence.md)).
+- The user requires automatic retries of uncertain external email/Slack sends and a circuit breaker, accepting possible duplicate external messages (D-002). The five-send example is a priority statement, not an attempt limit.
+- The user's later clarification and workflow sequence assign all event processing and delivery control to n8n with direct product-database access. The application manages conditions and the UI. No n8n/application HTTP layer or application-owned breaker exists in the current design ([ADR-005](adr/ADR-005-direct-database-integration-and-workflow-owned-delivery.md)).
 
-## Working proposals, not agreed requirements
+See [the decision log](decision-log.md) for chronology. Earlier ADRs remain historical where ADR-005 supersedes them.
 
-| ID | Proposal | Status and validation needed |
+## Explicit engineering assumptions
+
+| ID | Assumption/design default | Rationale, effect, and validation |
 | --- | --- | --- |
-| A-01 | Start with a narrowly selected event/source scenario and small explicit rule behavior. | Proposed scope strategy, not an agreed source count or rule language. Confirm that the selected scenario is useful with the product owner before implementation. |
-| A-02 | Use deterministic fixtures alongside a later real integration demo. | Proposed validation approach. Agree representative examples and expected outcomes before treating them as acceptance criteria. |
+| A-01 | One real earthquake provider/type; a second type is a stretch goal. | Prove the full path first. Validate the provider's canonical mapping and demonstrate the extension boundary without building unused types. |
+| A-02 | First valid accepted snapshot per source/external ID is immutable. | Keeps the new-event flow small. Provider corrections/retractions, including a later threshold crossing, can be missed. Review this limitation before expanding beyond the demo. |
+| A-03 | Rules are sampled at the atomic evaluation operation; completed events are not rematched after edits. | Gives one explicit snapshot and recoverable processing. Test edits/creation while an event is Pending and verify snapshot consistency. |
+| A-04 | Process the provider's bounded feed window on initial polling; no additional history import. | A first poll may include earlier occurrences. Confirm the chosen feed window and describe it in the demo; no completeness or latency SLA is assumed. |
+| A-05 | One Slack workspace/profile, one email sender/profile, and allowlisted test destinations. | Fits one trusted operator and reduces onboarding. Confirm actual authorized accounts/destinations before live sends; do not assume credentials exist. |
+| A-06 | At most one destination per channel per alert; one intent per event/alert/channel. | Provides a clear deduplication identity and avoids multi-recipient fan-out in this MVP. Test configuration validation and intent uniqueness. |
+| A-07 | Development-only demo identity selection, with owner/role checks in management operations. | Demonstrates user/admin behavior without real identity onboarding. It is intentionally not production authentication; test local-only configuration and fail closed outside that mode. |
+| A-08 | Three scheduled workflow responsibilities: ingest, evaluate Pending events, deliver Pending notifications. | Source failure or lack of new events must not strand durable work. Exercise crash/restart and independent recovery. |
+| A-09 | Workflow-owned event, delivery/attempt, and circuit state lives in the product database; EF migrations own schema. | Supports admin reads and durable cross-execution coordination without application runtime ownership or custom n8n internal tables. Test permissions and migration/query compatibility. |
+| A-10 | Configurable demo timing defaults from the architecture: small failure threshold/cooldown, one probe, bounded send/lease, capped retry delay. | These are engineering defaults, not measured capacity or user SLAs. Verify actual node timeouts/retries and controlled-time state transitions before acceptance. |
+| A-11 | No automatic product-state deletion or pending-notification expiry during the demo. | Preserves deduplication keys and pending intent across replay/outages. An explicit isolated reset is allowed; long-running retention and stale-message expiry need a later product decision. |
+| A-12 | Transient/uncertain work keeps retrying through backoff/circuits; permanent failures remain for operator correction. | Matches the user's preference to avoid loss. It cannot guarantee provider recovery, valid recipients, inbox placement, or human receipt. Test unknown outcomes and visible permanent failures. |
 
-No numeric scale, latency, retention, retry, or availability assumptions have been adopted. No ownership or authentication model is assumed. Additional assumptions must state their rationale, impact, and how they will be checked.
+## Question register
 
-## Open questions
-
-| ID | Area | Unresolved question | Resolve before |
+| ID | Area | Current answer / remaining question | Resolve or revisit before |
 | --- | --- | --- | --- |
-| Q-01 | Importance | What makes an event important, to whom, and which observable examples should or should not notify? | First-slice specification. |
-| Q-02 | Alert definition | How do users express and manage alert rules? Which inputs and operations are necessary? | Rule model and user workflow design. |
-| Q-03 | Event/source types | Which initial subject and event types are in scope? News, markets, and disasters are examples only. | First-slice specification. |
-| Q-04 | External sources | Which sources are appropriate and accessible, with usable contracts, quotas, and terms? None selected. | Source adapter/workflow design. |
-| Q-05 | Ingestion mode | Polling, webhooks, or both? What freshness and missed-ingestion behavior are needed? | Workflow design. |
-| Q-06 | Canonical event | Which fields, provenance, identifiers, timestamps, validation, and versioning rules are necessary? No schema agreed. | Ingestion contract and persistence design. |
-| Q-07 | Matching semantics | What comparisons, combinations, time interpretation, and handling of missing data are required? No rule language selected. | Matching implementation. |
-| Q-08 | Duplicate events | What identifies a repeat versus an update? Do reports from different sources about the same occurrence count as duplicates? | Event persistence and matching. |
-| Q-09 | Notification idempotency | What identifies one intended delivery? How should replay, concurrency, and unknown transport outcomes be handled? What residual duplicate risk is acceptable? | Delivery contract and durable state design. |
-| Q-10 | Retry/failure behavior | Which failures are retryable, under what limits/delays, and what happens after exhaustion or restart? Who owns each retry and any manual recovery? | Workflow and delivery design. |
-| Q-11 | User ownership | Who owns alerts and destinations? Are accounts, shared ownership, or multiple organizations needed in the first slice? | Persistence, API, and management design. |
-| Q-12 | Authentication/authorization | Who may create/change alerts, access destinations, invoke internal boundaries, or view/administer operations? What is the intended deployment/access context? | Exposing APIs, user/admin surfaces, or webhooks. |
-| Q-13 | Admin view | Which operational questions must it answer? Are event/delivery status, failure detail, or recovery actions needed, and for whom? | Admin design; do not assume the n8n editor is the product admin UI. |
-| Q-14 | Scale/throughput | Expected users, alerts, sources, event rate, bursts, and notification fan-out? Any latency target? | Capacity-sensitive design and acceptance budgets. |
-| Q-15 | Retention | How long should events, rules, delivery records, execution history, and personal data remain? What deletion expectations apply? | Persistence lifecycle and logging design. |
-| Q-16 | UI technology | Which of a small server-rendered UI (including ASP.NET Core Razor Pages), native JavaScript/TypeScript plus HTTP API, or Angular best serves the agreed interactions? | Selecting application/UI skeleton; future ADR. |
-| Q-17 | Slack workspace behavior | One configured workspace or multiple tenants/workspaces? Who supplies credentials and chooses destinations? Is self-service OAuth necessary? | Slack transport and ownership design. |
-| Q-18 | Email delivery | Which delivery mechanism/provider and sender setup are available? Who configures recipients and credentials? | Email transport design. |
-| Q-19 | Application and persistence | What is the smallest custom application shape and durable store? How are product records and n8n execution data separated? | Executable skeleton; future architecture decision. |
-| Q-20 | Delivery constraints | What is the actual time budget and which demonstrable journey defines success within it? | Committing to implementation scope. |
+| Q-01 | Importance | Enabled user-defined conditions determine relevance. No global score or runtime LLM. | New importance semantics require explicit product examples. |
+| Q-02 | Alert definition | One supported field/operator/value condition; list/create/edit/enable/disable; one or both channels. | Detailed form/input bounds before management implementation. |
+| Q-03 | Event/source type | Earthquakes confirmed. News/markets are extension examples, not additional MVP integrations. | Revisit after full-slice acceptance. |
+| Q-04 | External source | No provider chosen. Require stable IDs, useful magnitude/time data, usable terms/quotas, and a bounded polling window. | Source workflow milestone. |
+| Q-05 | Ingestion mode | Scheduled polling for the first slice; provider-specific cadence/window remains open. Webhook ingestion is deferred. | Source adapter implementation. |
+| Q-06 | Canonical event | Common versioned envelope and validated earthquake data; required concepts are in the architecture. Exact size bounds/serialization mapping need the implementation contract. | Canonical ingestion milestone. |
+| Q-07 | Matching | Magnitude greater than or equal to threshold; supported typed condition; missing/invalid magnitude rejected. Rule sampling follows A-03. | Matching query and tests. |
+| Q-08 | Duplicate/update handling | Unique source/external ID and A-02 first-snapshot semantics. No cross-provider occurrence merging or correction/retraction processing. | Revisit before supporting revised reports. |
+| Q-09 | Notification idempotency | Unique event/alert/channel intent; idempotent DB operations and attempt outcomes; external duplicates accepted for uncertain sends. | Claim/outcome query and workflow tests. |
+| Q-10 | Failure/circuit behavior | n8n owns persistent circuit/retry logic; defaults and neutral/unknown outcomes are defined in the architecture. Provider-specific errors/timeouts must be checked. | Delivery integration milestone. |
+| Q-11 | Ownership | Pre-created demo identities; owners manage their alerts; operator-provisioned destinations. No organization/sharing model. | Management implementation; revisit before pilot. |
+| Q-12 | Access | Explicit local demo identity selection and separate database privileges. No n8n/application HTTP authentication requirement. Production authentication is deferred. | Any public or independent multi-user access. |
+| Q-13 | Admin | Read-only events, processing, deliveries/attempts, errors, retry/circuit visibility. Recovery/debugging belongs in n8n. | Operational UI and workflow recovery runbook. |
+| Q-14 | Scale/throughput | No numeric production user/event/latency target exists. Profile serialization is a local simplification, not a capacity claim. | Capacity-sensitive expansion; check demo backlog/fairness during validation. |
+| Q-15 | Retention | Product data retained until explicit demo reset. n8n execution retention is separate; production lifecycle and notification expiry remain open. | Long-running or production operation. |
+| Q-16 | UI | Razor Pages selected over native JS/TypeScript and Angular for current forms/lists. | Revisit if interaction complexity changes. |
+| Q-17 | Slack | One configured workspace/profile, allowlisted destinations. Actual workspace, credential scope, and permissions remain open. | Authorized Slack setup and tests. |
+| Q-18 | Email | One configured sender/profile. Provider, mechanism, sender setup, recipient allowlist, and error mapping remain open. | Authorized email setup and tests. |
+| Q-19 | Persistence/runtime | ASP.NET Core, EF Core migrations, separate PostgreSQL databases, and n8n direct product access. Compatible supported version matrix and concrete privilege/query contracts remain integration work. | Executable skeleton and relevant schema changes. |
+| Q-20 | Time budget | Time-constrained, but no numeric duration or production readiness target was supplied. MVP is one complete local slice with both channels and failure validation. | Committing to a dated schedule or expanding scope. |
 
 ## Updating this register
 
-Distinguish an answer from a temporary assumption. Link accepted decisions to [the decision log](decision-log.md) and an ADR when architectural. Mark rejected proposals with the actual reason when rejection occurs. Keep unresolved questions visible and record new questions only when they arise; do not backfill imaginary discussions.
+Record real answers and corrections when they occur. Update an assumption when evidence or user direction changes it; retain why it existed and link architectural changes through ADRs. Do not manufacture agreement, scale estimates, test outcomes, or business requirements.
