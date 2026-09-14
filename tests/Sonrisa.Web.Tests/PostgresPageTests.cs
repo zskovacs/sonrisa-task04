@@ -5,14 +5,105 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Sonrisa.Web.Alerts;
 using Sonrisa.Web.Data;
 using Sonrisa.Web.Ownership;
+using Sonrisa.Web.Users;
 using Xunit;
 
 namespace Sonrisa.Web.Tests;
 
 public sealed class PostgresPageTests
 {
+    [PostgresFact]
+    public async Task Edit_uses_the_current_owner_and_revision_and_rejects_invalid_or_stale_posts()
+    {
+        var owner = Guid.NewGuid();
+        var alertId = Guid.NewGuid();
+        var originalRevision = Guid.NewGuid();
+        var marker = Guid.NewGuid().ToString("N");
+        await using var db = await PostgresServiceTests.OpenVerifiedContext();
+        try
+        {
+            db.Users.Add(new UserNotificationSettings
+            {
+                Id = owner, Revision = Guid.NewGuid(), EmailDestination = $"edit-{marker}@example.test"
+            });
+            db.Alerts.Add(new Alert
+            {
+                Id = alertId, OwnerId = owner, Revision = originalRevision, Name = $"Original {marker}",
+                Enabled = true, EventType = "earthquake", ConditionField = "magnitude",
+                ConditionOperator = "gte", ConditionValueType = "number", ConditionValue = 5.5
+            });
+            await db.SaveChangesAsync();
+
+            using var factory = new DatabasePageFactory(owner, Environment.GetEnvironmentVariable("SONRISA_TEST_DATABASE"));
+            using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+            var edit = await client.GetStringAsync($"/alerts/{alertId:D}/edit");
+            Assert.Equal($"Original {marker}", InputValue(edit, "Input.Name"));
+            Assert.Equal("5.5", InputValue(edit, "Input.Threshold"));
+            Assert.Equal(originalRevision.ToString("D"), InputValue(edit, "Input.Revision"));
+
+            using (var response = await client.PostAsync($"/alerts/{alertId:D}/edit", new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(edit, "__RequestVerificationToken"),
+                ["Input.Name"] = $"Updated {marker}",
+                ["Input.Threshold"] = "6.25",
+                ["Input.Enabled"] = "true",
+                ["Input.Revision"] = originalRevision.ToString("D"),
+                ["Input.OwnerId"] = Guid.NewGuid().ToString("D"),
+                ["OwnerId"] = Guid.NewGuid().ToString("D")
+            })))
+                Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+
+            var updated = await db.Alerts.AsNoTracking().SingleAsync(alert => alert.Id == alertId);
+            Assert.Equal(owner, updated.OwnerId);
+            Assert.Equal($"Updated {marker}", updated.Name);
+            Assert.Equal(6.25, updated.ConditionValue);
+            Assert.Equal("earthquake", updated.EventType);
+            Assert.Equal("magnitude", updated.ConditionField);
+            Assert.Equal("gte", updated.ConditionOperator);
+            Assert.Equal("number", updated.ConditionValueType);
+            Assert.NotEqual(originalRevision, updated.Revision);
+
+            edit = await client.GetStringAsync($"/alerts/{alertId:D}/edit");
+            using (var response = await client.PostAsync($"/alerts/{alertId:D}/edit", new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = InputValue(edit, "__RequestVerificationToken"),
+                ["Input.Name"] = $"Stale {marker}",
+                ["Input.Threshold"] = "7.5",
+                ["Input.Enabled"] = "false",
+                ["Input.Revision"] = originalRevision.ToString("D")
+            })))
+            {
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                Assert.Contains("This alert changed. Reload it before saving.", await response.Content.ReadAsStringAsync());
+            }
+            await AssertUnchangedAsync(db, updated);
+
+            foreach (var invalid in new[]
+            {
+                new Dictionary<string, string> { ["Input.Name"] = "  ", ["Input.Threshold"] = "6.25" },
+                new Dictionary<string, string> { ["Input.Name"] = $"Updated {marker}", ["Input.Threshold"] = "not-a-number" }
+            })
+            {
+                edit = await client.GetStringAsync($"/alerts/{alertId:D}/edit");
+                invalid["__RequestVerificationToken"] = InputValue(edit, "__RequestVerificationToken");
+                invalid["Input.Enabled"] = "true";
+                invalid["Input.Revision"] = updated.Revision.ToString("D");
+                using var response = await client.PostAsync($"/alerts/{alertId:D}/edit", new FormUrlEncodedContent(invalid));
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                Assert.Contains(invalid["Input.Name"] == "  " ? "Enter a name" : "Enter a finite number", await response.Content.ReadAsStringAsync());
+                await AssertUnchangedAsync(db, updated);
+            }
+        }
+        finally
+        {
+            await db.Alerts.Where(alert => alert.Id == alertId).ExecuteDeleteAsync();
+            await db.Users.Where(user => user.Id == owner).ExecuteDeleteAsync();
+        }
+    }
+
     [PostgresFact]
     public async Task Settings_first_two_saves_and_status_forms_use_current_revision()
     {
@@ -91,6 +182,20 @@ public sealed class PostgresPageTests
         var match = Regex.Match(markup, $"name=\"{Regex.Escape(name)}\"[^>]*value=\"([^\"]*)\"");
         Assert.True(match.Success, $"Expected input {name}.");
         return WebUtility.HtmlDecode(match.Groups[1].Value);
+    }
+
+    private static async Task AssertUnchangedAsync(AppDbContext db, Alert expected)
+    {
+        var actual = await db.Alerts.AsNoTracking().SingleAsync(alert => alert.Id == expected.Id);
+        Assert.Equal(expected.OwnerId, actual.OwnerId);
+        Assert.Equal(expected.Name, actual.Name);
+        Assert.Equal(expected.ConditionValue, actual.ConditionValue);
+        Assert.Equal(expected.Enabled, actual.Enabled);
+        Assert.Equal(expected.Revision, actual.Revision);
+        Assert.Equal(expected.EventType, actual.EventType);
+        Assert.Equal(expected.ConditionField, actual.ConditionField);
+        Assert.Equal(expected.ConditionOperator, actual.ConditionOperator);
+        Assert.Equal(expected.ConditionValueType, actual.ConditionValueType);
     }
 
     private sealed class DatabasePageFactory(Guid owner, string? connection) : WebApplicationFactory<Program>

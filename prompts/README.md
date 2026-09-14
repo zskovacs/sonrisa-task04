@@ -17,6 +17,7 @@ This directory contains only substantive user-authored task requests. It is not 
 | [025](025-simplify-n8n-runtime-architecture.md) | Reconstruct and simplify runtime to one n8n pipeline with native deduplication and bounded retries; remove product database runtime state after approval. |
 | [026](026-add-email-channel-to-existing-n8n-workflow.md) | Add Email to the existing n8n runtime and validate channel extensibility, beginning with an approval-gated design. |
 | [027](027-add-operational-admin-view.md) | Add minimal read-only cross-owner product administration, with unattended implementation, validation and commit authorization. |
+| [028](028-end-to-end-validation.md) | Validate end-to-end MVP behavior, ownership, runtime failures, observability and reproducibility, with unattended correction and commit authorization. |
 
 Record meaningful user requests that start a milestone or assign implementation/product-validation work. Exclude agent-generated plans, delegated assignments, internal review prompts and loops, brainstorming answers, clarifications, approvals, status replies, and routine housekeeping. Honor explicit requests not to record a message.
 

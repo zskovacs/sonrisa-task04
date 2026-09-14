@@ -146,6 +146,8 @@ Readiness uses a five-second health timeout and caps the scoped provider connect
 
 ## Tests and validation
 
+The [integrated MVP validation](evidence/reviews/2026-09-14-end-to-end-validation.md) records the complete guarded suite, browser/ownership/admin checks, live USGS, native dedup/retry experiments and one SMTP4DEV capture. It also records two corrected management outage cases: alerts and settings now return generic 503 pages for a refused database or parseable configuration without a host. Known best-effort and unauthenticated-MVP limits remain unchanged.
+
 ```bash
 dotnet test Sonrisa.sln
 ```

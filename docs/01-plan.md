@@ -28,7 +28,7 @@ Read [scope](03-scope.md), [architecture](04-architecture.md), [assumptions](02-
 | 8. Integrated validation | Complete deterministic and real-source/channel failure demonstrations. | Matching, native duplicate limits, retry isolation, ownership and secret checks have genuine evidence. |
 | 9. Final reflection | Compare implementation to brief and review corrections. | Honest retrospective and final review tied to actual evidence. |
 
-Current work is milestone 7 under [prompt 027](../prompts/027-add-operational-admin-view.md), the [specification](superpowers/specs/2026-09-14-operational-admin-view-design.md) and [reviewed plan](superpowers/plans/2026-09-14-operational-admin-view.md). Its branch starts directly from `a198778`. Implementation, acceptance checks and final whole-branch review are complete. See [admin evidence](../evidence/reviews/2026-09-14-operational-admin-validation.md). Integrated validation remains a separately authorized later milestone. No unattended schedule is activated; five-minute polling of the bounded hour remains a later activation setting.
+Current work is milestone 8 under [prompt 028](../prompts/028-end-to-end-validation.md), the [specification](superpowers/specs/2026-09-14-end-to-end-validation-design.md) and [reviewed plan](superpowers/plans/2026-09-14-end-to-end-validation.md). Its branch starts directly from the completed admin milestone `eaa588b`; the user allowed branching from main after all predecessor milestones were verified in its history. Validation and two narrow management outage corrections are complete; see [integrated evidence](../evidence/reviews/2026-09-14-end-to-end-validation.md). Final whole-branch review approved the completed milestone with no findings. The final documentation/retrospective milestone has not started. No unattended schedule is activated; five-minute polling of the bounded hour remains a later activation setting.
 
 ## Planned milestone commits
 
@@ -41,10 +41,10 @@ Current work is milestone 7 under [prompt 027](../prompts/027-add-operational-ad
 | 5 | `feat: implement first end-to-end n8n alert workflow` |
 | 6 | `feat: add email notification channel to n8n workflow` |
 | 7 | `feat: add operational admin view` |
-| 8 | `test: validate matching, deduplication and delivery failures` |
+| 8 | `test: validate end-to-end behavior and failure scenarios` |
 | 9 | `docs: add AI review evidence and final retrospective` |
 
-The milestone-5 correction used the same user-requested message in a forward commit. Milestone 6 uses `feat: add email notification channel to n8n workflow`, reflecting the required channel extension and rejection of durable infrastructure. Preserve completed history; do not create empty future commits.
+The milestone-5 correction used the same user-requested message in a forward commit. Milestone 6 uses `feat: add email notification channel to n8n workflow`, reflecting the required channel extension and rejection of durable infrastructure. Milestone 8 uses the explicitly requested end-to-end validation wording to include application, admin, telemetry and failure coverage; this changes no milestone ordering. Preserve completed history; do not create empty future commits.
 
 ## Evidence discipline
 

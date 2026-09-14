@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Npgsql;
 using Sonrisa.Web.Data;
 using Xunit;
 
@@ -64,6 +65,38 @@ public sealed class AlertPagesTests : IClassFixture<AlertPagesTests.AlertWebAppl
         Assert.Contains("Save settings", page, StringComparison.Ordinal);
         Assert.Contains("__RequestVerificationToken", page, StringComparison.Ordinal);
         Assert.DoesNotContain("OwnerId", page, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("/alerts")]
+    [InlineData("/settings/notifications")]
+    public async Task Refused_database_returns_generic_unavailable_page(string path)
+    {
+        using var refusedFactory = new RefusedAlertWebApplicationFactory();
+        using var client = refusedFactory.CreateClient();
+
+        using var response = await client.GetAsync(path);
+        var page = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Contains("temporarily unavailable", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("Npgsql", page, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData("/alerts")]
+    [InlineData("/settings/notifications")]
+    public async Task Parsed_connection_without_host_returns_generic_unavailable_page(string path)
+    {
+        using var unusableFactory = new RefusedAlertWebApplicationFactory(host: string.Empty);
+        using var client = unusableFactory.CreateClient();
+
+        using var response = await client.GetAsync(path);
+        var page = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        Assert.Contains("temporarily unavailable", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("ArgumentNullException", page, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -189,6 +222,24 @@ public sealed class AlertPagesTests : IClassFixture<AlertPagesTests.AlertWebAppl
         {
             builder.UseEnvironment("Testing");
             builder.ConfigureServices(IsolateDatabase);
+        }
+    }
+
+    private sealed class RefusedAlertWebApplicationFactory(string host = "127.0.0.1") : WebApplicationFactory<Program>
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<DbContextOptions<AppDbContext>>();
+                var connection = new NpgsqlConnectionStringBuilder
+                {
+                    Host = host, Port = 1, Database = "sonrisa_dev", Username = "probe",
+                    Timeout = 1, Pooling = false
+                }.ConnectionString;
+                services.AddSingleton(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(connection).Options);
+            });
         }
     }
 

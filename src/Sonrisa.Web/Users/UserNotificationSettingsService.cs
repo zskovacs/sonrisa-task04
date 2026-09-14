@@ -85,14 +85,20 @@ public sealed class UserNotificationSettingsService(
         var configured = db.Database.GetConnectionString();
         if (!string.IsNullOrWhiteSpace(configured))
         {
-            try { _ = new NpgsqlConnectionStringBuilder(configured); return true; }
+            try
+            {
+                var parsed = new NpgsqlConnectionStringBuilder(configured);
+                if (!string.IsNullOrWhiteSpace(parsed.Host)) return true;
+            }
             catch (ArgumentException) { }
         }
         LogUnavailable("configuration");
         return false;
     }
 
-    private static bool IsDatabaseFailure(Exception exception) => exception is DbException or DbUpdateException or TimeoutException;
+    private static bool IsDatabaseFailure(Exception exception) =>
+        exception is DbException or DbUpdateException or TimeoutException
+            or InvalidOperationException { InnerException: DbException or TimeoutException };
     private void LogUnavailable(string operation) => logger.LogWarning(
         "Notification settings {Operation} unavailable due to database failure.", operation);
 }

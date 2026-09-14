@@ -1,0 +1,198 @@
+{
+  "instructions": "Use a new external ID prefix per initial run; replay the same IDs for dedup checks. Feed through Operator feed input mode=fixture. Disable and disconnect native transports as described in the evidence before source/matching/failure tests. Restore the original inactive graph and live/empty defaults after every scenario.",
+  "sourceFixture": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "id": "e2e-d3959d6c069b-below",
+        "properties": {
+          "type": "earthquake",
+          "mag": -100.1,
+          "time": 1789392000000,
+          "title": "Synthetic E2E below",
+          "url": "https://example.test/earthquake/below"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "e2e-d3959d6c069b-equal",
+        "properties": {
+          "type": "earthquake",
+          "mag": -100,
+          "time": 1789392000000,
+          "title": "Synthetic E2E equal",
+          "url": "https://example.test/earthquake/equal"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "e2e-d3959d6c069b-above",
+        "properties": {
+          "type": "earthquake",
+          "mag": -99.9,
+          "time": 1789392000000,
+          "title": "Synthetic E2E above",
+          "url": "https://example.test/earthquake/above"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "e2e-d3959d6c069b-equal",
+        "properties": {
+          "type": "earthquake",
+          "mag": -100,
+          "time": 1789392000000,
+          "title": "Synthetic E2E equal",
+          "url": "https://example.test/earthquake/equal"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "e2e-d3959d6c069b-bad",
+        "properties": {
+          "type": "earthquake",
+          "mag": "-99",
+          "time": 1789392000000,
+          "title": "Synthetic E2E bad",
+          "url": "https://example.test/earthquake/bad"
+        }
+      },
+      {
+        "type": "Feature",
+        "id": "e2e-d3959d6c069b-missing",
+        "properties": {
+          "type": "earthquake",
+          "mag": null,
+          "time": 1789392000000,
+          "title": "Synthetic E2E missing",
+          "url": "https://example.test/earthquake/missing"
+        }
+      }
+    ]
+  },
+  "profiles": [
+    {
+      "id": "aa6dcbb1-62d2-4865-a3fa-6bb1e1ef1066",
+      "email": "e2e-a@example.test",
+      "slack": null
+    },
+    {
+      "id": "ada2945d-75f9-4d34-832d-1cbce1aeba54",
+      "email": "e2e-b@example.test",
+      "slack": "CE2EBOTH"
+    },
+    {
+      "id": "f28e73b3-90e1-44e1-ad58-e8028c93b4f2",
+      "email": null,
+      "slack": "CE2ESLACK"
+    }
+  ],
+  "rules": [
+    {
+      "id": "1d2991fe-78ad-4d72-bc63-44b25ab28dc5",
+      "owner": "aa6dcbb1-62d2-4865-a3fa-6bb1e1ef1066",
+      "enabled": true,
+      "name": "E2E validation 0",
+      "value": -100
+    },
+    {
+      "id": "3a85e747-604a-46cd-a820-234df156d4aa",
+      "owner": "ada2945d-75f9-4d34-832d-1cbce1aeba54",
+      "enabled": true,
+      "name": "E2E validation 1",
+      "value": -100
+    },
+    {
+      "id": "ba786f65-2e11-4870-b663-cae57ee2a5e3",
+      "owner": "f28e73b3-90e1-44e1-ad58-e8028c93b4f2",
+      "enabled": true,
+      "name": "E2E validation 2",
+      "value": -100
+    },
+    {
+      "id": "d6993c4a-9a25-4da4-91b5-e0af907dc7c6",
+      "owner": "f28e73b3-90e1-44e1-ad58-e8028c93b4f2",
+      "enabled": false,
+      "name": "E2E validation 3",
+      "value": -100
+    }
+  ],
+  "pinnedMalformedConfiguration": {
+    "event": {
+      "contract_version": 1,
+      "source": "demo.usgs",
+      "external_id": "e2e-d3959d6c069b-pinned",
+      "event_type": "earthquake",
+      "occurred_at": "2026-09-14T16:00:00.000Z",
+      "title": "Synthetic pinned configuration",
+      "source_url": null,
+      "data": {
+        "magnitude": 5
+      }
+    },
+    "alerts": [
+      {
+        "id": "1d2991fe-78ad-4d72-bc63-44b25ab28dc5",
+        "name": "Synthetic configuration",
+        "enabled": true,
+        "event_type": "earthquake",
+        "condition_field": "magnitude",
+        "condition_operator": "gt",
+        "condition_value_type": "number",
+        "condition_value": 5,
+        "email_destination": "e2e-a@example.test",
+        "slack_destination": "CE2ETEST"
+      },
+      {
+        "id": "1d2991fe-78ad-4d72-bc63-44b25ab28dc5",
+        "name": "Synthetic configuration",
+        "enabled": true,
+        "event_type": "earthquake",
+        "condition_field": "magnitude",
+        "condition_operator": "gte",
+        "condition_value_type": "number",
+        "condition_value": "5",
+        "email_destination": "e2e-a@example.test",
+        "slack_destination": "CE2ETEST"
+      },
+      {
+        "id": "1d2991fe-78ad-4d72-bc63-44b25ab28dc5",
+        "name": "Synthetic configuration",
+        "enabled": false,
+        "event_type": "earthquake",
+        "condition_field": "magnitude",
+        "condition_operator": "gte",
+        "condition_value_type": "number",
+        "condition_value": 5,
+        "email_destination": "e2e-a@example.test",
+        "slack_destination": "CE2ETEST"
+      },
+      {
+        "id": "1d2991fe-78ad-4d72-bc63-44b25ab28dc5",
+        "name": "Synthetic configuration",
+        "enabled": true,
+        "event_type": "earthquake",
+        "condition_field": "magnitude",
+        "condition_operator": "gte",
+        "condition_value_type": "number",
+        "condition_value": 5,
+        "email_destination": "invalid-list@example.test,other@example.test",
+        "slack_destination": "CE2ETEST"
+      },
+      {
+        "id": "1d2991fe-78ad-4d72-bc63-44b25ab28dc5",
+        "name": "Synthetic configuration",
+        "enabled": true,
+        "event_type": "earthquake",
+        "condition_field": "magnitude",
+        "condition_operator": "gte",
+        "condition_value_type": "number",
+        "condition_value": 5,
+        "email_destination": "e2e-a@example.test",
+        "slack_destination": "CE2ETEST"
+      }
+    ]
+  },
+  "notes": "These UUIDs identify removed validation-owned DEV rows. Regenerate owner/alert IDs for reproduction. Do not reinsert them or reset shared dedup history. Pinned malformed data is intentionally rejected by product configuration constraints and must never be inserted into DEV."
+}

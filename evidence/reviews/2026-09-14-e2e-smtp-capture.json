@@ -1,0 +1,15 @@
+{
+  "messageId": "9f1c3d7e-86c8-4dd5-93a4-b69b57fe7181",
+  "messageCountBefore": 2,
+  "messageCountAfter": 3,
+  "from": "sonrisa@example.test",
+  "to": "e2e-a@example.test",
+  "subject": "[SYNTHETIC] Sonrisa alert: Synthetic E2E SMTP capture",
+  "contentType": "text/plain",
+  "body": "[SYNTHETIC] Sonrisa earthquake alert\nAlert: E2E validation 0\nEarthquake: M -100 — Synthetic E2E SMTP capture\nOccurred: 2026-09-14T13:20:00.000Z\nSource: USGS (synthetic test)\nEvent URL: https://example.test/earthquake/equal",
+  "attachments": 0,
+  "executionId": "76",
+  "replayExecutionId": "77",
+  "messageCountAfterReplay": 3,
+  "proof": "SMTP submission and SMTP4DEV capture only; no external internet mailbox delivery."
+}
