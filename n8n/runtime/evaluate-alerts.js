@@ -5,7 +5,7 @@ const safeEvent = event => ({
 });
 const diagnostic = (code, event, alertId) => ({ json: { channel: 'diagnostic', code, ...safeEvent(event), ...(alertId ? { alert_id: alertId } : {}) } });
 const validAlertId = id => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) && !/^0{8}-0{4}-0{4}-0{4}-0{12}$/i.test(id);
-const validEmail = value => typeof value === 'string' && value.length <= 254 && /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/.test(value) && !value.includes('..');
+const validEmail = value => typeof value === 'string' && value.length <= 254 && /^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*@[A-Za-z0-9]+(?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9]+(?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$/.test(value);
 for (const item of $input.all()) {
   const { event, alerts } = item.json ?? {};
   const magnitude = event?.data?.magnitude;

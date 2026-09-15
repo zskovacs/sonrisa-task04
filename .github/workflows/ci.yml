@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SONRISA_TEST_DATABASE: ''
+      SONRISA_TEST_DATABASE_NAME: ''
+    defaults:
+      run:
+        working-directory: checkout path -1
+    steps:
+      # actions/checkout v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          path: checkout path -1
+          persist-credentials: false
+      # actions/setup-node v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: checkout path -1/package-lock.json
+      # actions/setup-dotnet v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1
+        with:
+          global-json-file: checkout path -1/global.json
+      - run: npm ci
+      - run: npm run css:build
+      - run: dotnet build Sonrisa.sln -c Release
+      - run: dotnet test Sonrisa.sln -c Release --no-build
+      - run: node --test n8n/tests/*.test.mjs

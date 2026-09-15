@@ -13,4 +13,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.12" />
     <ProjectReference Include="../../src/Sonrisa.Web/Sonrisa.Web.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="../fixtures/destination-contract.json" Link="fixtures/destination-contract.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

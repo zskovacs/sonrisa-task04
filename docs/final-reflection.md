@@ -38,6 +38,8 @@ The final principle became:
 
 [ADR-012](adr/ADR-012-use-n8n-native-runtime-state.md) records the trade-off. A forward migration removed the two runtime tables, the replacement workflow was validated, and the obsolete workflows were archived. Simplicity and requirement alignment were preferred over stronger recovery. This was a conscious reduction in guarantees, not a claim that durable systems are unnecessary in general.
 
+The rewrite cost was concrete: the team built and validated database runtime tables, lifecycle SQL and multiple workflows, extended that design with SMTP, then removed or replaced them and repeated integration validation. Git places the original runtime, SMTP extension and simplification commits at 19:16, 20:10 and 21:21 on September 14, respectively; commit intervals do not measure person-hours. Earlier reliability preferences came from both agent design and explicit user decisions. Next time I would settle acceptable notification loss and recovery before implementing delivery-state tables, and validate the smallest end-to-end workflow before expanding reliability guarantees.
+
 USGS identity followed the same reasoning. Preferred identifiers can change; alias-aware physical-event reconciliation was considered and deferred. Source/external-ID deduplication is sufficient for the accepted MVP, with explicit repeat/loss limits.
 
 ## 7. Extensibility validation

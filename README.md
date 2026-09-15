@@ -4,6 +4,8 @@ Sonrisa is an MVP for configuring earthquake-magnitude alerts and delivering mat
 
 **Status:** the delivered MVP has one inactive, manually operated n8n workflow with Slack and Email branches. The final end-to-end validation is recorded in [the evidence](evidence/reviews/2026-09-14-end-to-end-validation.md).
 
+Delivery is best effort: an event is marked seen before configuration reads and sends, so a later failure can permanently lose notifications. Native duplicate history can halt processing at its 10,000-entry capacity. Unattended operation needs a separate capacity and recovery decision.
+
 ## Final architecture
 
 ```mermaid
@@ -77,7 +79,9 @@ dotnet test Sonrisa.sln
 node --test n8n/tests/*.test.mjs
 ```
 
-Without explicit guarded test-database configuration, relational .NET tests intentionally skip. The prior integrated validation ran all guarded cases and recorded **83/83 .NET** and **24/24 Node** tests, along with real application, PostgreSQL, and workflow checks. This documentation milestone's current checks are reported separately in [final documentation evidence](evidence/reviews/2026-09-15-final-documentation.md); historical runs are evidence, not a claim that external systems were re-executed.
+The [CI workflow](.github/workflows/ci.yml) runs the local build, CSS and unguarded test checks without shared DEV credentials. Database-gated tests still require the explicitly authorized setup in the [runbook](docs/08-runbook.md#local-tests-and-guarded-integration-tests).
+
+Without explicit guarded test-database configuration, relational .NET tests intentionally skip. The prior integrated validation ran all guarded cases and recorded **83/83 .NET** and **24/24 Node** tests, along with real application, PostgreSQL, and workflow checks. The documentation-finalization rerun is recorded in [milestone evidence](evidence/reviews/2026-09-15-final-documentation.md); the subsequent local results are in [correction evidence](evidence/reviews/2026-09-15-independent-review-corrections.md). Historical runs do not imply that external systems were re-executed.
 
 ## Known limitations
 
@@ -88,6 +92,12 @@ Without explicit guarded test-database configuration, relational .NET tests inte
 - Deduplication happens before configuration reads and sending: downstream failures can permanently lose notifications, and new/edited alerts do not rematch seen events.
 - SMTP4DEV proves SMTP submission and capture only; it does not prove external internet-mail delivery.
 - The current DEV database credential/TLS posture is an accepted DEV exception, not production validation.
+
+## Tooling and process
+
+Development used OpenAI Codex, customized Superpowers planning/implementation/review skills, task and whole-branch AI reviewers, RTK, and Rider/PostgreSQL/n8n MCP tools. These tools assisted implementation and checking; the user set and revised product scope. AI reviewers are independent agent contexts, not independent human audits. The [review log](docs/ai-review-log.md) ties accepted corrections to checks.
+
+The [original plan at 4fca2f1](https://github.com/zskovacs/sonrisa-task04/blob/4fca2f1/docs/01-plan.md) is an immutable starting snapshot. The [current milestone history](docs/01-plan.md) records later changes. [Prompt history](prompts/README.md) explains its curated scope, removed records and unavailable drafting provenance. The [external review assessment](evidence/reviews/2026-09-15-independent-review-corrections.md) distinguishes findings about the old revision from current corrections.
 
 ## Repository guide
 

@@ -27,6 +27,8 @@ builder.Services.AddSingleton<IValidator<AlertInput>, AlertInputValidator>();
 builder.Services.AddSingleton<IValidator<UserNotificationSettingsInput>, UserNotificationSettingsInputValidator>();
 builder.Services.AddScoped<AlertManagementService>();
 builder.Services.AddScoped<UserNotificationSettingsService>();
+builder.Services.AddExceptionHandler<SafeExceptionHandler>();
+builder.Services.AddProblemDetails();
 builder.Services.AddRazorPages();
 builder.Services.AddHealthChecks().AddCheck<PostgresHealthCheck>(
     "postgresql", tags: ["ready"], timeout: TimeSpan.FromSeconds(5));
@@ -41,6 +43,7 @@ if (string.IsNullOrWhiteSpace(databaseConnection.Value))
     app.Logger.LogWarning("Missing database configuration key {ConfigurationKey}.", connectionKey);
 }
 
+app.UseExceptionHandler();
 app.UseStaticFiles();
 app.MapRazorPages();
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });

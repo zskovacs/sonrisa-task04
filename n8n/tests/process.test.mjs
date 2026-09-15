@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { runInNewContext } from 'node:vm';
 
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
@@ -61,7 +62,7 @@ test('Slack message escapes user text and omits raw destination', () => {
 });
 
 test('process builder includes native Email transport without persistence', () => {
-  const sdk = execFileSync(process.execPath, [new URL('../build-workflow.mjs', import.meta.url).pathname, 'process'], { encoding: 'utf8' });
+  const sdk = execFileSync(process.execPath, [fileURLToPath(new URL('../build-workflow.mjs', import.meta.url)), 'process'], { encoding: 'utf8' });
   assert.match(sdk, /removeDuplicateInputItems/);
   assert.match(sdk, /removeItemsSeenInPreviousExecutions/);
   assert.match(sdk, /maxTries: 5/);

@@ -2,7 +2,7 @@
 
 ## Status and history
 
-Implementation and end-to-end validation are complete at `e667447`. This final documentation milestone reconciles the delivered MVP; it authorizes no product change. See the [runbook](08-runbook.md), [evidence index](../evidence/README.md) and [retrospective](final-reflection.md).
+Implementation and end-to-end validation completed at `e667447`; final documentation completed at `ce8b76c`. The subsequent [independent-review correction pass](superpowers/plans/2026-09-15-external-review-corrections.md) fixes bounded defects without changing the nine-milestone history. See the [runbook](08-runbook.md), [evidence index](../evidence/README.md) and [retrospective](final-reflection.md).
 
 Git records bootstrap at `4fca2f1`, architecture at `b68e3ad`, skeleton at `5880801`, configuration management at `98b000c`, first runtime at `b9cf171` and the subsequent SMTP extension at `e1dc337`. These implementations and their evidence remain historical facts.
 
@@ -61,7 +61,7 @@ The milestone-5 correction used the same user-requested message in a forward com
 | 6 — Email in the final pipeline | `a198778` |
 | 7 — Product admin | `eaa588b` |
 | 8 — End-to-end validation | `e667447` |
-| 9 — Final documentation | The commit containing [final documentation evidence](../evidence/reviews/2026-09-15-final-documentation.md) |
+| 9 — Final documentation | `ce8b76c`; [final documentation evidence](../evidence/reviews/2026-09-15-final-documentation.md) |
 
 Milestones 1–8 were committed on 2026-09-14; this final documentation task was requested on 2026-09-15. Tooling/prompt housekeeping commits remain in Git and are not represented as additional product milestones.
 

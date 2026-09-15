@@ -105,9 +105,11 @@ The application retains JSON console logs. OpenTelemetry request traces are expo
 
 Each also supports `OTEL_EXPORTER_OTLP_TRACES_*` and `OTEL_EXPORTER_OTLP_LOGS_*`; a nonempty signal setting overrides the common one. HTTP/protobuf appends `/v1/traces` or `/v1/logs` to a common endpoint; signal endpoints are used exactly. Endpoint user information, queries and fragments are rejected. Invalid settings disable the affected signal with a key-only warning. Export uses background batching; missing/unavailable OTLP does not block startup or health. There are no metrics, Npgsql/EF spans or cross-process trace propagation through PostgreSQL. [ADR-009](adr/ADR-009-use-opentelemetry-logs-and-request-traces.md).
 
+Unexpected request exceptions handled by the application return a generic 500 and emit `UnexpectedRequestFailure` with only `ExceptionType` and `TraceCorrelation`. Use that correlation to find the request trace. Raw exceptions and provider/framework request diagnostics remain suppressed; hosting-lifetime messages stay available locally but are excluded from OTLP logs. Intentional 409/503 page results retain their existing behavior.
+
 ## n8n operations
 
-Open [Sonrisa - Process Alerts - DEV](https://n8n.nasgard.io/workflow/aVijfnQr0kdLAJHP) in the existing shared instance. The authoritative final artifact is [n8n/workflows/process.json](../n8n/workflows/process.json). Its source, local checks, import/rebinding process, native history limits, retry behavior, and diagnostics are documented in [n8n/README.md](../n8n/README.md).
+Open [Sonrisa - Process Alerts - DEV](https://n8n.nasgard.io/workflow/aVijfnQr0kdLAJHP) in the existing shared instance. The current local artifact is [n8n/workflows/process.json](../n8n/workflows/process.json). The [independent-review corrections](../evidence/reviews/2026-09-15-independent-review-corrections.md) have not been imported into the hosted workflow; previous live evidence applies to the earlier revision. Its source, local checks, import/rebinding process, native history limits, retry behavior, and diagnostics are documented in [n8n/README.md](../n8n/README.md).
 
 If an import is needed in an authorized target, use the n8n editor’s import-from-file action with `n8n/workflows/process.json`, then inspect its nodes, connections and inactive state. Prefer inspecting the existing authoritative DEV workflow for a review: importing creates another workflow and does not transfer technical history. Importing the sanitized artifact creates a workflow without credentials or prior deduplication history. Before any execution, explicitly rebind only these credential categories:
 
@@ -136,7 +138,7 @@ Slack and Email each use five total native attempts, with five seconds between f
 
 Slack requires the bot posting scope `chat:write` and access to the configured channel; the versioned [app manifest](../n8n/slack-app-manifest.json) requests only that scope. Slack destinations are configured product values; transport credentials stay in n8n. Inspect failure data in n8n without copying raw credential or destination values into diagnostics.
 
-Email uses the matched owner's configured bare mailbox and the n8n SMTP credential. SMTP4DEV was used for controlled validation and proves SMTP submission/capture only. It does not prove external-provider or internet-mailbox delivery. Treat a production SMTP provider as a credential/sender configuration change that requires its own controlled validation.
+Email uses the matched owner's configured bare mailbox and the n8n SMTP credential. SMTP4DEV was used for controlled validation and proves SMTP submission/capture only. It does not prove external-provider or internet-mailbox delivery. The sender `sonrisa@example.test` is fixed in the SDK/artifact and enforced by the exporter for the SMTP4DEV demonstration. An external provider requires a real permitted sender, coordinated SDK/exporter/artifact updates, credentials and controlled validation; changing the credential alone is insufficient.
 
 ## Documented incidents
 
@@ -153,6 +155,16 @@ node --test n8n/tests/*.test.mjs
 ```
 
 Relational tests skip unless `SONRISA_TEST_DATABASE` and the expected `SONRISA_TEST_DATABASE_NAME` are supplied externally. Those tests write generated fixtures only after verifying `current_database()`, then roll back or remove their exact records. They do not migrate, truncate or reset the database. Enable them only for a reviewed test target; the final documentation check deliberately leaves them disabled and reuses the prior guarded result.
+
+For portable recorded counters, run the unguarded suite directly and inspect the generated TRX rather than relying on an abbreviated terminal formatter:
+
+```bash
+env -u SONRISA_TEST_DATABASE -u SONRISA_TEST_DATABASE_NAME \
+  dotnet test Sonrisa.sln --logger 'trx;LogFileName=local-tests.trx' \
+  --results-directory artifacts/test-results
+```
+
+Reports are ignored build output. Review them for machine-specific paths and sensitive data before retaining evidence. This direct command does not depend on the historical untracked credential helper. It intentionally does not reproduce database-gated integration checks.
 
 ## Evidence and limits
 

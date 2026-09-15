@@ -1,0 +1,212 @@
+[
+  {
+    "name": "simple mailbox",
+    "email": "owner@example.test",
+    "slack": null,
+    "isValid": true,
+    "normalizedEmail": "owner@example.test",
+    "normalizedSlack": null,
+    "runtimeChannels": ["email"],
+    "runtimeDiagnostics": []
+  },
+  {
+    "name": "ASCII dot-atom mailbox and dotted domain",
+    "email": "first.last+tag@example-domain.test",
+    "slack": null,
+    "isValid": true,
+    "normalizedEmail": "first.last+tag@example-domain.test",
+    "normalizedSlack": null,
+    "runtimeChannels": ["email"],
+    "runtimeDiagnostics": []
+  },
+  {
+    "name": "surrounding destination spaces are normalized before persistence",
+    "email": "  owner@example.test  ",
+    "slack": "  C123ABC  ",
+    "isValid": true,
+    "normalizedEmail": "owner@example.test",
+    "normalizedSlack": "C123ABC",
+    "runtimeChannels": ["slack", "email"],
+    "runtimeDiagnostics": []
+  },
+  {
+    "name": "missing optional Email with Slack",
+    "email": null,
+    "slack": "C123ABC",
+    "isValid": true,
+    "normalizedEmail": null,
+    "normalizedSlack": "C123ABC",
+    "runtimeChannels": ["slack"],
+    "runtimeDiagnostics": []
+  },
+  {
+    "name": "blank optional Email with Slack",
+    "email": "   ",
+    "slack": "C123ABC",
+    "isValid": true,
+    "normalizedEmail": null,
+    "normalizedSlack": "C123ABC",
+    "runtimeChannels": ["slack"],
+    "runtimeDiagnostics": []
+  },
+  {
+    "name": "254-character mailbox",
+    "email": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@example.test",
+    "slack": null,
+    "isValid": true,
+    "normalizedEmail": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@example.test",
+    "normalizedSlack": null,
+    "runtimeChannels": ["email"],
+    "runtimeDiagnostics": []
+  },
+  {
+    "name": "255-character mailbox",
+    "email": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@example.test",
+    "slack": null,
+    "isValid": false,
+    "normalizedEmail": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa@example.test",
+    "normalizedSlack": null,
+    "runtimeChannels": [],
+    "runtimeDiagnostics": ["invalid_email_destination"]
+  },
+  {
+    "name": "single-label domain",
+    "email": "user@localhost",
+    "slack": null,
+    "isValid": false,
+    "normalizedEmail": "user@localhost",
+    "normalizedSlack": null,
+    "runtimeChannels": [],
+    "runtimeDiagnostics": ["invalid_email_destination"]
+  },
+  {
+    "name": "trailing domain dot",
+    "email": "user@example.test.",
+    "slack": null,
+    "isValid": false,
+    "normalizedEmail": "user@example.test.",
+    "normalizedSlack": null,
+    "runtimeChannels": [],
+    "runtimeDiagnostics": ["invalid_email_destination"]
+  },
+  {
+    "name": "leading local dot",
+    "email": ".user@example.test",
+    "slack": null,
+    "isValid": false,
+    "normalizedEmail": ".user@example.test",
+    "normalizedSlack": null,
+    "runtimeChannels": [],
+    "runtimeDiagnostics": ["invalid_email_destination"]
+  },
+  {
+    "name": "trailing local dot",
+    "email": "user.@example.test",
+    "slack": null,
+    "isValid": false,
+    "normalizedEmail": "user.@example.test",
+    "normalizedSlack": null,
+    "runtimeChannels": [],
+    "runtimeDiagnostics": ["invalid_email_destination"]
+  },
+  {
+    "name": "consecutive local dots",
+    "email": "user..name@example.test",
+    "slack": null,
+    "isValid": false,
+    "normalizedEmail": "user..name@example.test",
+    "normalizedSlack": null,
+    "runtimeChannels": [],
+    "runtimeDiagnostics": ["invalid_email_destination"]
+  },
+  {
+    "name": "leading domain hyphen",
+    "email": "user@-example.test",
+    "slack": null,
+    "isValid": false,
+    "normalizedEmail": "user@-example.test",
+    "normalizedSlack": null,
+    "runtimeChannels": [],
+    "runtimeDiagnostics": ["invalid_email_destination"]
+  },
+  {
+    "name": "trailing domain hyphen",
+    "email": "user@example-.test",
+    "slack": null,
+    "isValid": false,
+    "normalizedEmail": "user@example-.test",
+    "normalizedSlack": null,
+    "runtimeChannels": [],
+    "runtimeDiagnostics": ["invalid_email_destination"]
+  },
+  {
+    "name": "consecutive domain dots",
+    "email": "user@example..test",
+    "slack": null,
+    "isValid": false,
+    "normalizedEmail": "user@example..test",
+    "normalizedSlack": null,
+    "runtimeChannels": [],
+    "runtimeDiagnostics": ["invalid_email_destination"]
+  },
+  {
+    "name": "non-ASCII mailbox",
+    "email": "usér@example.test",
+    "slack": null,
+    "isValid": false,
+    "normalizedEmail": "usér@example.test",
+    "normalizedSlack": null,
+    "runtimeChannels": [],
+    "runtimeDiagnostics": ["invalid_email_destination"]
+  },
+  {
+    "name": "Email control character",
+    "email": "owner@example.test\n",
+    "slack": null,
+    "isValid": false,
+    "normalizedEmail": "owner@example.test",
+    "normalizedSlack": null,
+    "runtimeChannels": ["email"],
+    "runtimeDiagnostics": []
+  },
+  {
+    "name": "invalid Email does not suppress valid Slack at runtime",
+    "email": "user@localhost",
+    "slack": "C123ABC",
+    "isValid": false,
+    "normalizedEmail": "user@localhost",
+    "normalizedSlack": "C123ABC",
+    "runtimeChannels": ["slack"],
+    "runtimeDiagnostics": ["invalid_email_destination"]
+  },
+  {
+    "name": "invalid Slack does not suppress valid Email at runtime",
+    "email": "owner@example.test",
+    "slack": "#general",
+    "isValid": false,
+    "normalizedEmail": "owner@example.test",
+    "normalizedSlack": "#general",
+    "runtimeChannels": ["email"],
+    "runtimeDiagnostics": ["invalid_slack_destination"]
+  },
+  {
+    "name": "Slack control character",
+    "email": null,
+    "slack": "C123ABC\n",
+    "isValid": false,
+    "normalizedEmail": null,
+    "normalizedSlack": "C123ABC",
+    "runtimeChannels": ["slack"],
+    "runtimeDiagnostics": []
+  },
+  {
+    "name": "no destination",
+    "email": "  ",
+    "slack": "  ",
+    "isValid": false,
+    "normalizedEmail": null,
+    "normalizedSlack": null,
+    "runtimeChannels": [],
+    "runtimeDiagnostics": []
+  }
+]

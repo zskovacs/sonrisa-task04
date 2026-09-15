@@ -1,10 +1,11 @@
-using System.Net.Mail;
 using FluentValidation;
 
 namespace Sonrisa.Web.Users;
 
 public sealed class UserNotificationSettingsInputValidator : AbstractValidator<UserNotificationSettingsInput>
 {
+    private const string MailboxPattern = @"\A[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*@[A-Za-z0-9]+(?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9]+(?:[A-Za-z0-9-]*[A-Za-z0-9])?)+\z";
+
     public UserNotificationSettingsInputValidator()
     {
         RuleFor(input => input).Must(input =>
@@ -13,9 +14,9 @@ public sealed class UserNotificationSettingsInputValidator : AbstractValidator<U
         RuleFor(input => input.EmailDestination)
             .Must(value => !ContainsControl(value)).WithMessage("Email must not contain control characters.");
         RuleFor(input => Normalize(input.EmailDestination))
+            .Cascade(CascadeMode.Stop)
             .MaximumLength(254).WithMessage("Email destination must be at most 254 characters.")
-            .EmailAddress().WithMessage("Enter a valid email address.")
-            .Must(IsBareMailbox).WithMessage("Enter a single email mailbox.")
+            .Matches(MailboxPattern).WithMessage("Enter a single email mailbox.")
             .OverridePropertyName(nameof(UserNotificationSettingsInput.EmailDestination))
             .When(input => Normalize(input.EmailDestination) is not null);
         RuleFor(input => input.SlackDestination)
@@ -31,15 +32,6 @@ public sealed class UserNotificationSettingsInputValidator : AbstractValidator<U
     {
         var trimmed = value?.Trim();
         return string.IsNullOrEmpty(trimmed) ? null : trimmed;
-    }
-
-    private static bool IsBareMailbox(string? value)
-    {
-        var email = Normalize(value);
-        return email is not null && MailAddress.TryCreate(email, out var parsed)
-               && parsed.Address == email && parsed.DisplayName == ""
-               && !email.Contains("..", StringComparison.Ordinal)
-               && !email.StartsWith(".", StringComparison.Ordinal);
     }
 
     private static bool ContainsControl(string? value) => value?.Any(char.IsControl) == true;

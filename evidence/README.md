@@ -6,6 +6,7 @@ Start with [end-to-end validation](reviews/2026-09-14-end-to-end-validation.md) 
 
 | Area | Evidence and limits |
 | --- | --- |
+| Independent review corrections | [Assessment and checks](reviews/2026-09-15-independent-review-corrections.md): findings against `e667447` reconciled with `ce8b76c`, bounded local fixes, no shared DEV changes or sends. |
 | Runtime course correction | [Baseline inspection](reviews/2026-09-14-runtime-simplification-inspection.md), [replacement validation](reviews/2026-09-14-runtime-simplification-validation.md): forward table removal, native dedup/cap limits, five-attempt isolation, real Slack acceptance 52/re-entry 53 and archival. The initial replacement was Slack-only; Email followed. |
 | Email extensibility | [Validation](reviews/2026-09-14-email-channel-validation.md), [execution summaries](reviews/2026-09-14-email-channel-executions.json), [SMTP4DEV capture](reviews/2026-09-14-email-channel-smtp-capture.json): same channel boundary, narrow name-projection exception, both-direction native retry mocks, one SMTP submission/capture. |
 | Product admin | [Validation](reviews/2026-09-14-operational-admin-validation.md), [desktop/mobile screenshots](reviews/operational-admin-ui/): read-only cross-owner counts, privacy and owner-scoped management regressions. |

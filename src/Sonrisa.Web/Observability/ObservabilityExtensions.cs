@@ -20,6 +20,7 @@ internal static class ObservabilityExtensions
         // failure logs remain available and contain only bounded operation/classification data.
         builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.None);
         builder.Logging.AddFilter("OpenTelemetry", LogLevel.None);
+        builder.Logging.AddFilter<OpenTelemetryLoggerProvider>("Microsoft.Hosting.Lifetime", LogLevel.None);
         builder.Logging.AddJsonConsole(options => options.IncludeScopes = false);
         builder.Services.Configure<OpenTelemetryLoggerOptions>(options =>
         {

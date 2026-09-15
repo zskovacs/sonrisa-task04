@@ -2,6 +2,8 @@
 
 The current architecture is [ADR-012](../docs/adr/ADR-012-use-n8n-native-runtime-state.md): one primary `Sonrisa - Process Alerts - DEV` workflow in the existing shared instance at `https://n8n.nasgard.io`. Keep it inactive. The completed MVP is manually operated; do not activate unattended polling.
 
+The local [review corrections](../evidence/reviews/2026-09-15-independent-review-corrections.md) update destination/message validation in the checked-in artifact. They have **not** been imported into the hosted workflow. Historical native retry/dedup and send evidence describes the earlier revision; local tests and exporter checks cover the corrected Code bodies. Authorized import and native validation are separate follow-up work.
+
 ## What the workflow does
 
 Manual source selection → USGS all-hour fetch or explicit fixture → shared canonical normalizer → split events → native within-batch duplicate filter → native previous-execution filter → parameterized configuration SELECT → typed magnitude evaluation/channel expansion → one notification per iteration → Slack, Email, or visible unsupported-channel branch. Each terminal transport path returns to the loop, so later notifications continue.

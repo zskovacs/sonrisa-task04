@@ -7,10 +7,12 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Trace;
+using Sonrisa.Web.Ownership;
 using Xunit;
 
 namespace Sonrisa.Web.Tests;
@@ -21,6 +23,69 @@ public sealed class TelemetryEnvironmentCollection;
 [Collection("Telemetry environment")]
 public sealed class ObservabilityTests
 {
+    private const string ExceptionMessageSentinel =
+        "exception-message-sentinel url=/private/path?token=query-secret-sentinel " +
+        "destination=private@example.test credential=credential-secret-sentinel";
+
+    [Fact]
+    public async Task Unexpected_exception_returns_generic_500_and_emits_safe_correlated_log()
+    {
+        var capture = new Capture();
+        using var environment = new TelemetryEnvironment();
+        using var factory = new TelemetryFactory(capture, throwUnexpectedException: true);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/alerts?probe=query-secret-sentinel");
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.Equal("An unexpected error occurred.", body);
+        var safeLog = Assert.Single(capture.Logs, log => log.EventName == "UnexpectedRequestFailure");
+        Assert.StartsWith("Unexpected request failure.", safeLog.Message, StringComparison.Ordinal);
+        Assert.Contains(safeLog.Attributes, attribute => attribute == "ExceptionType=SensitiveTestException");
+        var correlation = Assert.Single(safeLog.Attributes,
+            attribute => attribute.StartsWith("TraceCorrelation=", StringComparison.Ordinal));
+        Assert.Matches("^TraceCorrelation=[0-9a-f]{32}$", correlation);
+        Assert.Equal($"TraceCorrelation={safeLog.TraceId}", correlation);
+        Assert.NotEqual(default, safeLog.TraceId);
+        Assert.NotEqual(default, safeLog.SpanId);
+        Assert.DoesNotContain("sentinel", safeLog.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("private@example.test", safeLog.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Unexpected_exception_otlp_payload_contains_safe_correlation_without_sensitive_data()
+    {
+        await using var receiver = await Receiver.StartAsync();
+        using var environment = new TelemetryEnvironment(new Dictionary<string, string?>
+        {
+            ["OTEL_EXPORTER_OTLP_ENDPOINT"] = receiver.Address,
+            ["OTEL_EXPORTER_OTLP_PROTOCOL"] = "http/protobuf"
+        });
+        using var factory = new TelemetryFactory(new Capture(), throwUnexpectedException: true);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/alerts?probe=query-secret-sentinel");
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.True(SpinWait.SpinUntil(() => receiver.Requests.Any(request =>
+                    request.Path == "/v1/logs"
+                    && Encoding.UTF8.GetString(request.Body).Contains("UnexpectedRequestFailure", StringComparison.Ordinal))
+                && receiver.Requests.Any(request => request.Path == "/v1/traces"),
+            TimeSpan.FromSeconds(10)));
+        var payload = string.Join(" ", receiver.Requests.Where(request =>
+                request.Path is "/v1/logs" or "/v1/traces")
+            .Select(request => Encoding.UTF8.GetString(request.Body)));
+        Assert.Contains("Unexpected request failure.", payload, StringComparison.Ordinal);
+        Assert.Contains("SensitiveTestException", payload, StringComparison.Ordinal);
+        Assert.Contains("TraceCorrelation", payload, StringComparison.Ordinal);
+        Assert.DoesNotContain("exception-message-sentinel", payload, StringComparison.Ordinal);
+        Assert.DoesNotContain("query-secret-sentinel", payload, StringComparison.Ordinal);
+        Assert.DoesNotContain("private@example.test", payload, StringComparison.Ordinal);
+        Assert.DoesNotContain("credential-secret-sentinel", payload, StringComparison.Ordinal);
+        Assert.DoesNotContain("/private/path", payload, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task Request_trace_and_safe_failure_log_share_trace_id_without_sensitive_request_data()
     {
@@ -155,8 +220,38 @@ public sealed class ObservabilityTests
         Assert.True(SpinWait.SpinUntil(() => receiver.Requests.Any(r => r.Path == "/v1/logs"),
             TimeSpan.FromSeconds(10)));
         Assert.DoesNotContain(receiver.Requests, request => request.Path == "/v1/traces");
-        Assert.Contains(capture.Logs, log => log.Message.Contains(key, StringComparison.Ordinal));
-        Assert.DoesNotContain(capture.Logs, log => log.ToString().Contains(value, StringComparison.Ordinal));
+        var warning = Assert.Single(capture.Logs, log =>
+            log.Message == $"OTLP export disabled due to invalid configuration key {key}."
+            && log.Attributes.Contains($"ConfigurationKey={key}"));
+        Assert.DoesNotContain(value, warning.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Hosting_lifetime_content_root_is_not_exported()
+    {
+        await using var receiver = await Receiver.StartAsync();
+        using var contentRoot = new TemporaryDirectory("sonrisa-content-root--1-");
+        using var environment = new TelemetryEnvironment(new Dictionary<string, string?>
+        {
+            ["OTEL_EXPORTER_OTLP_ENDPOINT"] = receiver.Address,
+            ["OTEL_EXPORTER_OTLP_PROTOCOL"] = "http/protobuf"
+        });
+        using var factory = new TelemetryFactory(new Capture(), contentRoot.Path);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/health/live");
+        factory.Services.GetRequiredService<ILoggerFactory>()
+            .CreateLogger("Sonrisa.Tests.ExportProbe")
+            .LogInformation("safe-export-probe");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(SpinWait.SpinUntil(() => receiver.Requests.Any(request => request.Path == "/v1/logs"
+                && Encoding.UTF8.GetString(request.Body).Contains("safe-export-probe", StringComparison.Ordinal)),
+            TimeSpan.FromSeconds(10)));
+        var exportedLogs = string.Join(" ", receiver.Requests.Where(request => request.Path == "/v1/logs")
+            .Select(request => Encoding.UTF8.GetString(request.Body)));
+        Assert.Contains("safe-export-probe", exportedLogs, StringComparison.Ordinal);
+        Assert.DoesNotContain(contentRoot.Path, exportedLogs, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -196,18 +291,31 @@ public sealed class ObservabilityTests
         Assert.Equal(HttpStatusCode.OK, live.StatusCode);
     }
 
-    private sealed class TelemetryFactory(Capture capture) : WebApplicationFactory<Program>
+    private sealed class TelemetryFactory(
+        Capture capture,
+        string? contentRoot = null,
+        bool throwUnexpectedException = false) : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment("Testing");
+            if (contentRoot is not null)
+                builder.UseContentRoot(contentRoot);
             builder.ConfigureTestServices(services =>
             {
                 services.ConfigureOpenTelemetryTracerProvider(traces => traces.AddProcessor(new SpanCapture(capture)));
                 services.ConfigureOpenTelemetryLoggerProvider(logs => logs.AddProcessor(new LogCapture(capture)));
+                if (throwUnexpectedException)
+                {
+                    services.RemoveAll<ICurrentOwner>();
+                    services.AddSingleton<ICurrentOwner>(_ =>
+                        throw new SensitiveTestException(ExceptionMessageSentinel));
+                }
             });
         }
     }
+
+    private sealed class SensitiveTestException(string message) : Exception(message);
 
     private sealed class TelemetryEnvironment : IDisposable
     {
@@ -257,7 +365,8 @@ public sealed class ObservabilityTests
     private sealed class LogCapture(Capture capture) : BaseProcessor<LogRecord>
     {
         public override void OnEnd(LogRecord data) => capture.Logs.Add(new LogSnapshot(
-            data.TraceId, data.SpanId, data.FormattedMessage ?? data.Body ?? string.Empty,
+            data.TraceId, data.SpanId, data.EventId.Name,
+            data.FormattedMessage ?? data.Body ?? string.Empty,
             data.Attributes?.Select(attribute => $"{attribute.Key}={attribute.Value}").ToArray() ?? []));
     }
 
@@ -267,10 +376,22 @@ public sealed class ObservabilityTests
         public override string ToString() => $"{Name} {string.Join(" ", Tags)}";
     }
 
-    private sealed record LogSnapshot(ActivityTraceId TraceId, ActivitySpanId SpanId,
+    private sealed record LogSnapshot(ActivityTraceId TraceId, ActivitySpanId SpanId, string? EventName,
         string Message, string[] Attributes)
     {
         public override string ToString() => $"{Message} {string.Join(" ", Attributes)}";
+    }
+
+    private sealed class TemporaryDirectory : IDisposable
+    {
+        public TemporaryDirectory(string prefix)
+        {
+            Path = Directory.CreateTempSubdirectory(prefix).FullName;
+        }
+
+        public string Path { get; }
+
+        public void Dispose() => Directory.Delete(Path, recursive: true);
     }
 
     private sealed class Receiver(WebApplication app) : IAsyncDisposable

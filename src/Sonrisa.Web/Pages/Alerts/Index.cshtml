@@ -31,7 +31,7 @@ else
             {
                 <tr>
                     <td class="px-4 py-3 font-medium"><a class="text-sky-800 underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600" asp-page="Edit" asp-route-id="@alert.Id">@alert.Name</a></td>
-                    <td class="px-4 py-3">Earthquake magnitude &gt;= @alert.Threshold</td>
+                    <td class="px-4 py-3">Earthquake magnitude &gt;= @alert.Threshold.ToString("R", System.Globalization.CultureInfo.InvariantCulture)</td>
                     <td class="px-4 py-3"><span class="rounded px-2 py-1 text-sm font-medium @(alert.Enabled ? "bg-emerald-100 text-emerald-900" : "bg-slate-200 text-slate-800")">@(alert.Enabled ? "Enabled" : "Disabled")</span></td>
                     <td class="px-4 py-3">
                         <form method="post" asp-page-handler="Status">

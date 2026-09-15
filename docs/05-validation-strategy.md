@@ -19,7 +19,8 @@ node --test n8n/tests/*.test.mjs
 | Integrated milestone `e667447`, default .NET | 64 passed, 19 guarded PostgreSQL cases skipped. |
 | Integrated milestone `e667447`, verified DEV configuration | 83 passed, zero failed/skipped. |
 | Integrated milestone Node | 24 passed, zero failed/skipped. |
-| Final documentation local rerun | Build: zero warnings/errors; .NET: 64 passed, 19 guarded skips; Node: 24 passed. [Current evidence](../evidence/reviews/2026-09-15-final-documentation.md). |
+| Final documentation local rerun | Build: zero warnings/errors; .NET: 64 passed, 19 guarded skips; Node: 24 passed. [Milestone evidence](../evidence/reviews/2026-09-15-final-documentation.md). |
+| Independent-review correction working tree based on `ce8b76c` | Release build: zero warnings/errors; .NET: 69 passed, 19 guarded skips; Node: 30 passed. [Correction evidence](../evidence/reviews/2026-09-15-independent-review-corrections.md). No hosted runtime update. |
 
 Guarded relational tests require externally supplied `SONRISA_TEST_DATABASE` and matching `SONRISA_TEST_DATABASE_NAME`. They verify `current_database()` before fixture writes, require existing reviewed schema, and roll back or remove exact generated IDs. They never migrate, truncate or reset unrelated data. Admin aggregate tests use a nonparallel collection to prevent fixture races. The documentation milestone did not enable these writes.
 
@@ -61,6 +62,8 @@ SMTP4DEV capture is not delivery through an internet provider to a recipient inb
 The authoritative [process export](../n8n/workflows/process.json) is checked against exact source, SQL, bindings, graph, loop/error feedback, retry settings and live/empty defaults. The sanitizer removes environment credential references and rejects active state, pins, state, test input and unsafe drift. Importing a new workflow requires rebinding and creates distinct deduplication history.
 
 Final read-only inspection found the same inactive 26-node DEV graph; sanitizing it produced a byte-identical export. Generated live and fixture SDK representations both passed n8n MCP validation without execution. Local Markdown paths/anchors, focused secret/hygiene checks and whitespace review are recorded in [final evidence](../evidence/reviews/2026-09-15-final-documentation.md). They establish documentation/artifact consistency, not fresh external delivery.
+
+The subsequent [independent-review corrections](../evidence/reviews/2026-09-15-independent-review-corrections.md) have local test/export evidence only. The hosted workflow was not updated, so the earlier native execution and message-content checks do not validate the corrected Code bodies.
 
 ## Not validated
 

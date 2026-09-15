@@ -19,11 +19,16 @@ This directory contains only substantive user-authored task requests. It is not 
 | [027](027-add-operational-admin-view.md) | Add minimal read-only cross-owner product administration, with unattended implementation, validation and commit authorization. |
 | [028](028-end-to-end-validation.md) | Validate end-to-end MVP behavior, ownership, runtime failures, observability and reproducibility, with unattended correction and commit authorization. |
 | [029](029-finalize-submission.md) | Finalize documentation, runbook, AI review evidence and retrospective against the completed MVP, with unattended review and commit authorization. |
+| [030](030-assess-independent-reviews.md) | Assess two independent reviews and correct verified defects and applicable recommendations. |
 
 Record meaningful user requests that start a milestone or assign implementation/product-validation work. Exclude agent-generated plans, delegated assignments, internal review prompts and loops, brainstorming answers, clarifications, approvals, status replies, and routine housekeeping. Honor explicit requests not to record a message.
 
 Accepted decisions belong in [ADRs](../docs/adr/) and the [decision log](../docs/decision-log.md). Actual review findings and validation results belong in the [AI review log](../docs/ai-review-log.md) and [evidence](../evidence/); internal prompts are not copied there as a replacement archive.
 
-Follow [AGENTS.md](../AGENTS.md#2-prompt-history). Each record contains only the date, purpose, and verbatim final English user prompt. Retained records keep their original numbers and text; numbering gaps reflect the authorized removal of internal prompts and discussion replies. Use the next number after the highest retained record for the next qualifying request. Earlier versions remain in Git history; do not rewrite commits to perform this cleanup.
+Follow [AGENTS.md](../AGENTS.md#2-prompt-history). Each record contains only the date, purpose, and verbatim final English user prompt. Keep current records stable and use the next number after the highest retained record for the next qualifying request.
+
+This is a curated task archive, not a complete transcript of every user/agent interaction. [Cleanup commit 9de6b95](https://github.com/zskovacs/sonrisa-task04/commit/9de6b95) removed 22 records, including decision/approval replies and internal agent assignments/reviews. [The archive before cleanup](https://github.com/zskovacs/sonrisa-task04/tree/58808018956ed64ffe96134fa8cd6cba3fc74448/prompts) remains accessible in Git. Gaps are intentional; some removed numbers (019–026) were subsequently reused, so cite historical prompts by revision **and filename**, not number alone. The current policy prevents further renumbering or reuse below the highest retained number.
+
+The records establish what final English task text was supplied, not whether every sentence was originally hand-written or AI-drafted. Sentence-level drafting provenance and a complete conversation transcript were not retained in the submission; no authorship labels are inferred from writing style. Prompt 030 preserves the user-supplied external review bodies as review claims, with only the Hungarian request framing translated into English. Findings and corrections are recorded in [the assessment](../evidence/reviews/2026-09-15-independent-review-corrections.md).
 
 Archived prompts describe historical requests. Current work follows the active user request and repository rules.
