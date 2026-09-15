@@ -1,32 +1,49 @@
 # MVP scope
 
-The [original brief](00-product-brief.md) requires configurable alerts, Slack and email, channel extensibility and an admin view. [ADR-012](adr/ADR-012-use-n8n-native-runtime-state.md) records the approved correction: those requirements do not imply guaranteed delivery, durable queues, delivery history or recovery processors.
+The [product brief](00-product-brief.md) requires configurable alerts, Slack and Email delivery, channel extensibility and an admin view. Implementation and integrated validation completed at `e667447`; this documentation milestone records the result without adding behavior.
 
-## Completed runtime milestones 5–6
+## Implemented
 
-One inactive, manual `Sonrisa - Process Alerts - DEV` workflow processes real USGS all-hour data or an explicit synthetic fixture through canonical validation, n8n-native within/across-execution duplicate filtering, enabled configuration reads across owners, deterministic one-condition magnitude matching, destination expansion, and Slack/Email routing. Each transport uses five total native attempts; an exhausted failure is visibly discarded while later notifications continue. Validation covers deterministic and live source paths, native duplicate history, bidirectional transport-failure isolation, existing Slack behavior, and one controlled SMTP4DEV Email submission/capture.
+| Capability | Delivered behavior |
+| --- | --- |
+| Alert management | Razor Pages create/list/edit/enable/disable; one finite magnitude `>=` threshold per earthquake alert; new alerts disabled. No delete action. |
+| Ownership-aware persistence | Stable owner UUID, scoped management queries, revision conflicts and atomic saves; shared per-owner Slack/Email settings. |
+| Source and matching | USGS current one-hour GeoJSON, canonical normalization and deterministic earthquake/magnitude/gte/number evaluation in n8n. |
+| Technical deduplication | Native within-batch and node-scoped previous-execution filtering by source/external ID; history bound 10,000. |
+| Slack and Email | Same matcher and destination expansion, separate native transports, five total attempts per item with five-second waits; discard and continue after exhaustion. |
+| Product admin | Read-only cross-owner `/admin`, `/admin/users`, `/admin/alerts`: counts, state, typed conditions and channel presence; full destinations omitted. |
+| Diagnostics | Application OpenTelemetry logs/request traces and health endpoints; runtime execution/failure/retry inspection in n8n. |
+| Development operation | Local application or application-only Docker, existing shared DEV PostgreSQL/n8n, one inactive manual workflow, reviewed export and deterministic fixtures. |
 
-Milestone 5 removed the rejected product runtime entities and applied tables through a reviewed forward EF migration. It preserved old migrations, commits and evidence and archived the three old workflows after replacement validation. The actual tested export stays in Git without credentials or pinned execution data.
+PostgreSQL stores `users`, `alerts` and EF migration history. Conditions are inline alert columns; non-secret destinations are shared user fields. The application manages configuration; n8n reads enabled alerts across owners. The configured owner is not a security boundary.
 
-During the Email extension, the configuration model, UI, owner resolution and application telemetry remained unchanged. PostgreSQL stores `users` and `alerts` plus EF history. The condition remains earthquake/magnitude/gte/number, with one finite numeric threshold per alert. Destinations are shared per-user fields; runtime processing across owners does not broaden management UI access. Email added only an alert-name query projection/pass-through for user-facing text; it did not change selection or condition evaluation.
+Email extended the channel route without schema or ASP.NET changes. Its small upstream addition projects the alert name and passes it through for message text; source ingestion, normalization, deduplication, selection and condition-matching behavior stayed unchanged. See [Email evidence](../evidence/reviews/2026-09-14-email-channel-validation.md).
 
-## Product administration — milestone 7
+## Explicitly out of scope / not implemented
 
-The authorized scope is three read-only configuration views: `/admin` summary counts, `/admin/users` cross-owner counts/channel-presence indicators and `/admin/alerts` cross-owner alert state/condition/channels. The existing configured-owner alert/settings management remains unchanged. No destination values, admin mutation actions, role switching or user-management features are added.
+- Authentication/authorization, production access isolation, role switching and full user administration. Admin pages are unprotected MVP surfaces.
+- Additional sources/event types, multiple conditions, AND/OR groups, arbitrary scripts, a rules DSL and geospatial rules.
+- Guaranteed or exactly-once delivery, queues, delivery ledgers, dead letters, recovery workers, circuits and infinite retries.
+- Physical-earthquake alias reconciliation, cross-provider merging, correction/retraction handling and retrospective matching of previously seen events.
+- Automatic scheduling/production activation, archive ingestion, completeness/latency guarantees and high-scale processing.
+- Angular or a separate browser application, application runtime HTTP APIs, local PostgreSQL/n8n provisioning and new observability backends.
 
-The admin area is an unprotected MVP surface, not a production security boundary. Authentication/authorization remains deferred. Runtime executions, failures, retries and integration diagnostics remain in n8n; no runtime dashboard, n8n client, new schema, runtime persistence or observability stack is introduced. Final integrated validation and reflection remain separate milestones.
+## Operating limitations
 
-## Explicit limitations
+The current-hour feed has no cursor or history import. Deduplication history is bounded technical state, not a permanent product ledger: the validated n8n release can fail at capacity before filtering, rather than evict old entries. Lost/reset/recreated history or changed provider IDs can permit repeats; globally atomic concurrency is not established.
 
-- The workflow remains inactive; five-minute polling is only future configuration. First live processing considers the bounded current hour, without a cursor or historical import.
-- Native deduplication is bounded technical history. Installed n8n 2.38.7 can stop at the history cap rather than automatically roll entries out. Lost/reset/recreated history or changed provider IDs can permit repeats; no globally atomic concurrency claim is made.
-- Seen events are not rematched for subsequently created/edited alerts or automatically recovered after downstream failure.
-- Slack and Email are best-effort, with bounded retries and possible duplicate/lost messages after ambiguous failures. No permanent or exactly-once notification guarantee exists.
-- Malformed events/configuration/destinations fail closed with diagnostics; unrelated valid alerts/channels continue where practical. One exhausted Slack or Email notification must not stop later notifications.
-- Authentication, multiple conditions, AND/OR groups, a rules DSL, additional sources, geospatial rules, physical-earthquake alias resolution, runtime APIs, workers and product queues are excluded.
+An event is marked seen before configuration reads and delivery. A downstream database failure or exhausted transport can therefore lose its notifications permanently. New/edited alerts do not rematch seen keys. Ambiguous provider outcomes can cause duplicates or loss.
 
-## Preserved topology and history
+SMTP4DEV proves SMTP submission and capture only; internet mailbox delivery remains unvalidated. Shared DEV administrative access and the observed lack of PostgreSQL TLS remain the accepted [DEV exception](adr/ADR-007-accept-current-dev-database-access.md), not production acceptance. See the [validation boundaries](05-validation-strategy.md).
 
-The application runs locally with Razor Pages/EF, using existing shared DEV PostgreSQL and hosted n8n. Do not provision either service or change shared n8n/global telemetry/credentials without need. Secrets stay in external configuration and n8n credentials; connection-string values never enter Git.
+## Future work
 
-The first runtime at `b9cf171` and SMTP extension at `e1dc337` were genuinely implemented and validated under earlier approvals. Their database state and workflow boundaries are now superseded deliberately, while their historical evidence remains intact. See the [approved correction specification](superpowers/specs/2026-09-14-runtime-simplification-design.md).
+1. Select a real Email provider and validate an authorized external recipient.
+2. Define access requirements before adding authenticated ownership and protected admin access.
+3. Decide whether unattended operation is needed, then review source frequency and native-history capacity against an actual usage target.
+
+No future item is authorized by this scope document.
+
+## Preserved history
+
+The first runtime (`b9cf171`) and SMTP extension (`e1dc337`) genuinely implemented database-backed runtime state and separate workflows. [ADR-012](adr/ADR-012-use-n8n-native-runtime-state.md) deliberately superseded them, and `c38f2a3` removed the runtime tables with a forward migration and archived the old workflows after replacement validation. Historical migrations, prompts and evidence remain intact. [Milestone history](01-plan.md) and [retrospective](final-reflection.md) explain the trade-off.

@@ -1,51 +1,74 @@
-# Validation strategy
+# Validation strategy and actual results
 
-The current runtime acceptance contract is [ADR-012](adr/ADR-012-use-n8n-native-runtime-state.md) and the [approved specification](superpowers/specs/2026-09-14-runtime-simplification-design.md). Tests for historical PostgreSQL event/delivery states do not prove native n8n deduplication or retry behavior.
+Validation has four distinct layers: local automated checks, application/database integration, deterministic n8n execution and real external integration. The [evidence index](../evidence/README.md) links each result to its actual milestone. Plans describe intended work; they do not prove behavior.
 
-## Management configuration
+## Automated tests
 
-Retain focused .NET validation, EF model, ownership, shared profile/revision, transaction, page/antiforgery, health and OpenTelemetry tests. Run `dotnet test Sonrisa.sln`; relational tests require externally supplied `SONRISA_TEST_DATABASE` and matching `SONRISA_TEST_DATABASE_NAME`. Verify the target before any fixture write. Tests use exact generated IDs and rollback/cleanup; never reset unrelated shared data. Run the build and EF pending-model check after model/migration changes.
+From the repository root:
 
-The forward runtime removal must change only the two obsolete runtime tables and their dependent objects. Review migration source and incremental generated SQL, check current database/history/counts/dependencies, and keep any restricted backup outside Git. After application, verify only justified configuration tables and EF history remain, and exercise actual management behavior. Historical migrations must be unchanged.
+```bash
+dotnet build Sonrisa.sln
+dotnet test Sonrisa.sln
+node --test n8n/tests/*.test.mjs
+```
 
-## Read-only product administration
+.NET checks cover validation, EF model/migration shape, owner-scoped services, rendered HTTP/antiforgery behavior, revisions/atomicity, admin projections, health and OpenTelemetry configuration/privacy. Node checks exercise the exact Code-node bodies, fixture mapping, typed matching, independent destinations, safe messages and export guards.
 
-Validate `/admin` counts, `/admin/users` cross-owner counts/channel indicators and `/admin/alerts` owner/state/condition/channel rendering using guarded PostgreSQL fixtures. Isolate aggregate HTTP tests in a nonparallel xUnit collection so other committed test fixtures cannot race totals. Clean up generated IDs only. Verify the normal owner-only list and rejection of foreign-owner edit/status route/form requests with valid antiforgery tokens.
-
-Check absent full destinations, encoded user text, no admin mutation actions, safe missing/malformed configuration and query-failure responses, owner-without-alerts and empty query results. Controlled empty readers are mock evidence, not proof that DEV was empty; do not delete shared data for an empty-state test. The existing schema requires a destination on saved owners, so None is a defensive display fallback rather than a persistable fixture.
-
-Build/start the application, inspect health endpoints and the requested routes, and check responsive browser rendering where available. Compare schema/data and the inactive n8n workflow to the pre-task baseline. Existing logging/tracing must stay destination-free; authentication remains absent. No workflow execution or external sends are required to validate these pages.
-
-## Exact workflow logic and export
-
-Run `node --test n8n/tests/*.test.mjs` against the exact source inserted into Code nodes. Cover canonical mapping and input bounds, malformed/non-numeric magnitude, multiple events in a batch, numeric threshold below/equal/above, disabled/malformed conditions, owner-independent configuration, safe Slack text, plain-text Email preparation/result confirmation and independent channel validation. Unknown channels must yield visible skips, not success; missing/invalid Email destinations must not send.
-
-Validate the SDK against actual installed node types. Inspect the retrieved remote graph: native within-input dedup followed by previous-execution dedup, parameterized SELECT only, n8n matching, batch-size-one channel loop, explicit Slack and Email success/error feedback, no active schedule or runtime writes. Export the actual tested graph; sanitization must be reproducible and reject behavior drift, unsafe parameters, secrets and test input. Test export/import representation and compare remote/local artifacts.
-
-## Live n8n evidence
-
-| Case | Required observation |
+| Run | Actual outcome |
 | --- | --- |
-| Real source | Real USGS request succeeds; IDs, UTC timestamps, numeric magnitude and optional fields match the normalizer contract. Transport stays suppressed during source/batch testing. |
-| Deterministic source | Clearly marked `demo.usgs` earthquake-shaped fixtures use the same normalizer and downstream path. Future live triggers cannot select fixtures. |
-| Native within-batch dedup | Repeated source/ID in one batch produces one retained item. |
-| Native across-execution dedup | First occurrence passes; a separate later execution using the same workflow/node identity filters it. Test state after a downstream failure. Do not claim a shared-instance restart was tested unless it actually was. |
-| Bounded history | A controlled small cap demonstrates installed-version behavior, then restore 10,000. Do not silently clear production history or claim permanent/atomic deduplication. |
-| Typed match | Below threshold produces no send; equal and above reach Slack and Email routing as configured; malformed and disabled configuration produces no false match. Confirm multiple owners are considered. |
-| Unsupported channel | Unknown type is visibly skipped; unrelated Slack and Email items continue. |
-| Native retry isolation | Safely mock each transport in the real engine: Email A fails five total attempts then discards while Slack B and Email C continue; exercise the inverse Slack failure. Pinning successful output alone is insufficient retry evidence. Remove test-only instrumentation afterward. |
-| Email configuration safety | No destination does not attempt Email; invalid list/mailbox configuration is rejected; one later valid Email continues. |
-| Real Email | Preflight one test-owned Email alert, persisted recipient, intended SMTP credential and synthetic event. Make one full-pipeline SMTP4DEV submission, inspect acceptance and captured plain-text content, then repeat full entry and observe no second send. This proves SMTP submission/capture, not external inbox delivery. Never directly replay the send node as a dedup test. |
-| Database unavailable | Simulate without disrupting shared services; fail visibly, documenting that already-seen events may lose their notifications. No product retry state is created. |
+| Integrated milestone `e667447`, default .NET | 64 passed, 19 guarded PostgreSQL cases skipped. |
+| Integrated milestone `e667447`, verified DEV configuration | 83 passed, zero failed/skipped. |
+| Integrated milestone Node | 24 passed, zero failed/skipped. |
+| Final documentation local rerun | Build: zero warnings/errors; .NET: 64 passed, 19 guarded skips; Node: 24 passed. [Current evidence](../evidence/reviews/2026-09-15-final-documentation.md). |
 
-After retry exhaustion the notification is discarded. Ambiguous transport failures may duplicate or lose messages. Events seen before new/changed alerts are not rematched. These are intentional acceptance semantics, not missing recovery features.
+Guarded relational tests require externally supplied `SONRISA_TEST_DATABASE` and matching `SONRISA_TEST_DATABASE_NAME`. They verify `current_database()` before fixture writes, require existing reviewed schema, and roll back or remove exact generated IDs. They never migrate, truncate or reset unrelated data. Admin aggregate tests use a nonparallel collection to prevent fixture races. The documentation milestone did not enable these writes.
 
-## Safe transition and review
+## Application and PostgreSQL integration
 
-Keep old workflows inactive; archive them only after replacement acceptance. Preserve execution and Git history. Final graph remains inactive with manual live/empty-fixture defaults; no recurring activation. Record exact execution IDs and mock boundaries, sanitized outcomes, applied migration ID and commands/results in evidence. Never store raw credentials, connection values, unrelated executions or full source payload dumps.
+[Integrated application evidence](../evidence/reviews/2026-09-14-e2e-application.md) records real host startup/restart, liveness/readiness, rendered owner-scoped management, cross-owner admin counts/rows, absent full admin destinations, and browser checks. Empty/timeout admin readers are explicitly controlled cases, not an emptied DEV database.
 
-Use per-task review and final whole-branch review. Resolve material findings before the milestone commit. Existing Slack evidence remains applicable because the Slack branch/settings stayed unchanged; the Email validation separately records fresh deterministic, failure-isolation and SMTP4DEV evidence. The product admin milestone validates configuration visibility separately from n8n runtime evidence; no runtime behavior change or new external send is implied.
+Live missing/malformed/blank-Host/refused database configurations exposed two management outage defects. Narrow service guards and four red/green HTTP regression cases corrected 500 responses to generic 503 pages. Liveness remained independent. Eleven observability tests exercised real SDK log/trace correlation, routing and privacy; unavailable OTLP did not prevent healthy operation.
 
-## Integrated validation result
+Read-only PostgreSQL inspection confirmed only `users`, `alerts` and six EF migration records, with runtime-table removal represented by a forward migration. Full-row digests matched before/after generated fixture cleanup. Readiness establishes connectivity only, not schema compatibility, privilege isolation or transport security. The accepted DEV exception remains in ADR-007.
 
-Milestone 8 [evidence](../evidence/reviews/2026-09-14-end-to-end-validation.md) records 83/83 guarded .NET tests and 24/24 Node tests, plus real application/browser/schema checks and n8n executions 64–77. The unconfigured .NET run passed 64 and deliberately skipped 19 relational cases; all 19 ran with verified DEV configuration. It distinguishes native-engine transport mocks, pinned malformed boundaries, real USGS, reused Slack acceptance and one SMTP4DEV capture. Two management outage cases exposed missing host validation/wrapped database failure handling; focused fixes now return safe 503 responses consistently. Final workflow export and original product-row digests matched the baseline after cleanup. See that record for explicit untested limits; this milestone does not activate scheduling or complete the retrospective.
+Earlier [skeleton](../evidence/reviews/2026-09-14-skeleton-review.md) and [configuration evidence](../evidence/reviews/2026-09-14-alert-configuration-validation.md) record Docker, migration and responsive UI checks. Those are historical observations; this documentation milestone did not rebuild Docker or repeat browser integration.
+
+## Deterministic workflow validation
+
+[Executions 64–77](../evidence/reviews/2026-09-14-end-to-end-validation.md#actual-n8n-runtime-scenarios) distinguish actual SQL/native nodes from mocks and pinned boundaries:
+
+- Below/equal/above threshold, malformed magnitudes, disabled rules, multi-owner routing and both destinations.
+- Within-input deduplication plus separate full-entry repeated executions with the same workflow/node identity.
+- Native retry-engine transport mocks: five observed calls, approximately 20 seconds at the failing node, visible discard and continuation in both transport directions.
+- Controlled history cap reduction: capacity failure before filtering; history retained and cap restored to 10,000.
+- Controlled read-only SQL failure after dedup and replay showing accepted loss.
+- Pinned schema-unrepresentable bad rules/destinations and an unknown future channel; these validate defensive boundaries, not supported persisted features.
+
+Temporary instrumentation was removed, workflow defaults/inactivity restored and remote export compared. Fixture row digests also matched after cleanup. No persistent mock nodes, pins or test input remain in the authoritative artifact.
+
+## Real external validation
+
+| Integration | Evidence | What it establishes |
+| --- | --- | --- |
+| USGS | Execution 72; earlier Email execution 60 | Actual HTTP response and canonical ID/magnitude/UTC comparisons, with transport suppressed. |
+| Slack | [Execution 52 and repeat 53](../evidence/reviews/2026-09-14-runtime-simplification-validation.md); re-inspected during integrated validation | Controlled synthetic API acceptance and no second full-entry send. Reuse was supported by unchanged source/transport contract, not a fresh credential-health or human-receipt claim. |
+| SMTP/Email | [Email execution 62](../evidence/reviews/2026-09-14-email-channel-validation.md), integrated execution 76 and repeat 77 | Native SMTP acceptance, sole intended recipient, decoded plain-text SMTP4DEV capture and no repeated send. |
+
+SMTP4DEV capture is not delivery through an internet provider to a recipient inbox. Native retry mocks are not real provider outages. A successful transport response is not an exactly-once guarantee.
+
+## Workflow source control and documentation checks
+
+The authoritative [process export](../n8n/workflows/process.json) is checked against exact source, SQL, bindings, graph, loop/error feedback, retry settings and live/empty defaults. The sanitizer removes environment credential references and rejects active state, pins, state, test input and unsafe drift. Importing a new workflow requires rebinding and creates distinct deduplication history.
+
+Final read-only inspection found the same inactive 26-node DEV graph; sanitizing it produced a byte-identical export. Generated live and fixture SDK representations both passed n8n MCP validation without execution. Local Markdown paths/anchors, focused secret/hygiene checks and whitespace review are recorded in [final evidence](../evidence/reviews/2026-09-15-final-documentation.md). They establish documentation/artifact consistency, not fresh external delivery.
+
+## Not validated
+
+- External internet Email delivery or current Slack credential health/human receipt.
+- Production scheduling reliability, missed-run completeness, high-scale/concurrent ingestion, shared-service restart or retention endurance.
+- Permanent/global/physical-earthquake exactly-once deduplication; alias resolution is deliberately absent.
+- Guaranteed delivery, durable recovery, dead letters or backlog drain.
+- Production authentication/authorization, least-privilege enforcement or PostgreSQL TLS.
+- Global hosted n8n OpenTelemetry or a new observability backend.
+
+These boundaries are accepted MVP limits. Future validation should follow a concrete new requirement and preserve shared data, credentials and workflow history.

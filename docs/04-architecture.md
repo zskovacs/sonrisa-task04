@@ -2,6 +2,23 @@
 
 The current boundary is [ADR-012](adr/ADR-012-use-n8n-native-runtime-state.md), accepted after the explicit runtime course correction. The earlier three-workflow/database-state design was implemented at `b9cf171` and extended with SMTP at `e1dc337`; historical ADRs, commits and validation preserve that sequence. The [approved specification](superpowers/specs/2026-09-14-runtime-simplification-design.md) defines this correction.
 
+## Final system at a glance
+
+```mermaid
+flowchart LR
+  UI[Razor Pages management and read-only admin] --> DB[(PostgreSQL users and alerts)]
+  Source[USGS current-hour feed] --> Fetch[n8n fetch and normalize]
+  Fetch --> Dedup[n8n native deduplication]
+  Dedup --> Read[Load enabled alerts]
+  DB --> Read
+  Read --> Match[Evaluate magnitude and expand destinations]
+  Match --> Route{Channel}
+  Route --> Slack[Slack]
+  Route --> Email[Email through SMTP]
+```
+
+The application manages product configuration. n8n owns the runtime path and its operations. For setup and operation, use the [runbook](08-runbook.md); for historical decisions, use the [ADR status index](adr/README.md).
+
 ## Responsibilities
 
 | Component | Owns |
@@ -14,7 +31,7 @@ The application runs locally, directly or in its application-only container. Exi
 
 ## Configuration and ownership
 
-The actual model has `alerts` with a required owner, name, enabled flag, revision and inline textual condition columns, and `users` with shared email/Slack destinations and revision. The initial condition is `earthquake` / `magnitude` / `gte` / `number`; thresholds are finite binary64 numbers. ADR-010's shared per-user destinations and the [configuration contract](06-alert-configuration-contract.md) remain unchanged. Do not introduce a separate channel table for theoretical extensibility.
+The actual model has `alerts` with a required owner, name, enabled flag, revision, inline textual condition descriptors and a numeric threshold column, and `users` with shared email/Slack destinations and revision. The initial condition is `earthquake` / `magnitude` / `gte` / `number`; thresholds are finite binary64 numbers. ADR-010's shared per-user destinations and the [configuration contract](06-alert-configuration-contract.md) remain unchanged. Do not introduce a separate channel table for theoretical extensibility.
 
 The management application resolves one configured/default owner under ADR-008 and scopes all management reads/writes to it. Authentication is intentionally absent; the resolver is not an authentication boundary. n8n loads enabled alerts across owners using their user-profile join, without reading `MvpOwner:Id`. Normal management retains that owner boundary. The separately authorized read-only admin pages intentionally expose cross-owner configuration counts and alert summaries, without full destinations or mutation actions.
 
@@ -53,7 +70,7 @@ The canonical envelope remains workflow data: `contract_version`, `source`, `ext
 
 ## Runtime semantics
 
-Native Remove Duplicates first removes repeated source/ID pairs in a batch, then filters previously seen keys at node scope. History size is 10,000. In installed n8n 2.38.7 the node may throw when stored count plus input count exceeds this bound before filtering; no permanent ledger, automatic rolling retention or globally atomic claim is promised. History belongs to n8n, not Sonrisa product tables. Keep workflow/node identity stable and document any deliberate history reset. No automatic reset is part of the workflow.
+Native Remove Duplicates first removes repeated source/ID pairs in a batch, then filters previously seen keys at node scope. History size is 10,000. In n8n 2.38.7, as recorded during runtime validation, the node may throw when stored count plus input count exceeds this bound before filtering; no permanent ledger, automatic rolling retention or globally atomic claim is promised. History belongs to n8n, not Sonrisa product tables. Keep workflow/node identity stable and document any deliberate history reset. No automatic reset is part of the workflow.
 
 USGS may change preferred identifiers, so one physical earthquake can be processed again under another ID. Alias resolution, merging and correction/retraction handling are deliberately excluded. Repeated observations under a retained key normally do not rematch. New or edited alerts do not retroactively evaluate seen events.
 
@@ -63,12 +80,12 @@ Email replaced the prior unsupported branch. The only upstream exception is proj
 
 ## Trigger, secrets and observability
 
-Manual execution remains sufficient after milestone 6; no schedule is activated. Proposed future polling is every five minutes against the current one-hour USGS feed. No cursor/archive import exists. An unrestricted first run can match several recent events; controlled validation suppresses transport before the one authorized synthetic SMTP4DEV send.
+The completed MVP remains manually operated; no schedule is activated. Proposed future polling is every five minutes against the current one-hour USGS feed. No cursor/archive import exists. An unrestricted first run can match several recent events; controlled validation suppresses transport before the one authorized synthetic SMTP4DEV send.
 
 Transport credentials stay in n8n. PostgreSQL contains non-secret product configuration, including destinations. Intended n8n product permissions are SELECT on configuration tables, without DDL or ownership. Existing broad DEV credentials and unverified/no-TLS observations are documented exceptions, not production permission targets. Migrations resolve their separate external configuration and verify the actual target before applying.
 
-Keep application OpenTelemetry unchanged. Runtime investigation uses n8n execution IDs, node errors, source/external IDs and alert IDs. Do not mirror execution state into product tables or fake trace propagation through PostgreSQL. Global n8n OTEL configuration remains unverified and unchanged. Avoid credential values, raw provider bodies, raw SMTP errors and destination data in diagnostic projections. SMTP4DEV capture proves SMTP submission and capture, not external inbox delivery.
+Application OpenTelemetry provides logs and request traces with optional OTLP export under ADR-009. Runtime investigation uses n8n execution IDs, node errors, source/external IDs and alert IDs. Do not mirror execution state into product tables or fake trace propagation through PostgreSQL. Global n8n OTEL configuration remains unverified and unchanged. Avoid credential values, raw provider bodies, raw SMTP errors and destination data in diagnostic projections. SMTP4DEV capture proves SMTP submission and capture, not external inbox delivery.
 
 ## Migration and history
 
-Forward migration `20260914184146_RemoveObsoleteRuntimeState` removes only the two obsolete runtime tables in dependency order. Previous migrations remain unchanged; rollback recreates empty schema, not deleted data. The controller verifies target/dependencies/counts and generated SQL, with an optional restricted Git-external backup. Old inactive workflows are archived only after replacement validation; their execution and repository history remain useful evidence.
+Forward migration `20260914184146_RemoveObsoleteRuntimeState` removed the two obsolete runtime tables in dependency order at `c38f2a3`. Previous migrations remain unchanged; rollback recreates empty schema, not deleted data. The migration followed target/dependency/count/SQL review; any restricted backup belongs outside Git. Old inactive workflows were archived after replacement validation; their execution and repository history remain useful evidence.

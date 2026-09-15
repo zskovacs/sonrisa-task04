@@ -2,6 +2,8 @@
 
 ## Status and history
 
+Implementation and end-to-end validation are complete at `e667447`. This final documentation milestone reconciles the delivered MVP; it authorizes no product change. See the [runbook](08-runbook.md), [evidence index](../evidence/README.md) and [retrospective](final-reflection.md).
+
 Git records bootstrap at `4fca2f1`, architecture at `b68e3ad`, skeleton at `5880801`, configuration management at `98b000c`, first runtime at `b9cf171` and the subsequent SMTP extension at `e1dc337`. These implementations and their evidence remain historical facts.
 
 The approved runtime simplification is complete: [ADR-012](adr/ADR-012-use-n8n-native-runtime-state.md) supersedes PostgreSQL runtime queues/delivery persistence and durable recovery requirements. Milestone 6 extends that same workflow with Email under the [approved specification](superpowers/specs/2026-09-14-email-channel-design.md) and [reviewed plan](superpowers/plans/2026-09-14-email-channel.md). Implementation, validation and final whole-branch review completed in commit `a198778`.
@@ -28,7 +30,7 @@ Read [scope](03-scope.md), [architecture](04-architecture.md), [assumptions](02-
 | 8. Integrated validation | Complete deterministic and real-source/channel failure demonstrations. | Matching, native duplicate limits, retry isolation, ownership and secret checks have genuine evidence. |
 | 9. Final reflection | Compare implementation to brief and review corrections. | Honest retrospective and final review tied to actual evidence. |
 
-Current work is milestone 8 under [prompt 028](../prompts/028-end-to-end-validation.md), the [specification](superpowers/specs/2026-09-14-end-to-end-validation-design.md) and [reviewed plan](superpowers/plans/2026-09-14-end-to-end-validation.md). Its branch starts directly from the completed admin milestone `eaa588b`; the user allowed branching from main after all predecessor milestones were verified in its history. Validation and two narrow management outage corrections are complete; see [integrated evidence](../evidence/reviews/2026-09-14-end-to-end-validation.md). Final whole-branch review approved the completed milestone with no findings. The final documentation/retrospective milestone has not started. No unattended schedule is activated; five-minute polling of the bounded hour remains a later activation setting.
+Milestone 8 completed at `e667447` with two narrow management outage corrections and an approved final review; [integrated evidence](../evidence/reviews/2026-09-14-end-to-end-validation.md) records the checks and cleanup. Milestone 9 follows [prompt 029](../prompts/029-finalize-submission.md) and the [reviewed documentation plan](superpowers/plans/2026-09-15-finalize-submission.md). The user allowed branching from current main, which already pointed at `e667447`; the documentation branch is `docs/finalize-submission`. No schedule is activated, and no further milestone is authorized.
 
 ## Planned milestone commits
 
@@ -42,9 +44,26 @@ Current work is milestone 8 under [prompt 028](../prompts/028-end-to-end-validat
 | 6 | `feat: add email notification channel to n8n workflow` |
 | 7 | `feat: add operational admin view` |
 | 8 | `test: validate end-to-end behavior and failure scenarios` |
-| 9 | `docs: add AI review evidence and final retrospective` |
+| 9 | `docs: finalize runbook, AI review evidence and final retrospective` |
 
-The milestone-5 correction used the same user-requested message in a forward commit. Milestone 6 uses `feat: add email notification channel to n8n workflow`, reflecting the required channel extension and rejection of durable infrastructure. Milestone 8 uses the explicitly requested end-to-end validation wording to include application, admin, telemetry and failure coverage; this changes no milestone ordering. Preserve completed history; do not create empty future commits.
+The milestone-5 correction used the same user-requested message in a forward commit. Milestone 6 uses `feat: add email notification channel to n8n workflow`, reflecting the required channel extension and rejection of durable infrastructure. Milestone 8 uses the explicitly requested end-to-end validation wording to include application, admin, telemetry and failure coverage; this changes no milestone ordering. Milestone 9 uses the final user-requested wording to include the runbook; only the title changes. Preserve completed history; do not create empty future commits.
+
+## Actual milestone revisions
+
+| Milestone | Completed revision |
+| --- | --- |
+| 1 — Brief, scope and plan | `4fca2f1` |
+| 2 — Architecture | `b68e3ad` |
+| 3 — Application skeleton | `5880801` |
+| 4 — Configuration management | `98b000c` |
+| 5 — Runtime | `b9cf171`, deliberately simplified by forward commit `c38f2a3` |
+| Intermediate SMTP extension | `e1dc337`; its runtime-state boundary was later superseded |
+| 6 — Email in the final pipeline | `a198778` |
+| 7 — Product admin | `eaa588b` |
+| 8 — End-to-end validation | `e667447` |
+| 9 — Final documentation | The commit containing [final documentation evidence](../evidence/reviews/2026-09-15-final-documentation.md) |
+
+Milestones 1–8 were committed on 2026-09-14; this final documentation task was requested on 2026-09-15. Tooling/prompt housekeeping commits remain in Git and are not represented as additional product milestones.
 
 ## Evidence discipline
 

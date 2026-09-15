@@ -1,5 +1,33 @@
 # AI review log
 
+## Reading the review history
+
+The entries below preserve what was known and approved at each stage. Statements such as “requires approval,” “no implementation yet,” Pending/Evaluated, or “Email remains next” belong to that entry's historical phase. For the final system, read [ADR-012](adr/ADR-012-use-n8n-native-runtime-state.md), the [ADR status index](adr/README.md) and [integrated evidence](../evidence/reviews/2026-09-14-end-to-end-validation.md).
+
+### Most important judgment: reducing unnecessary runtime infrastructure
+
+The intermediate three-workflow design and database-backed event/delivery state were technically defensible for stronger durability and recovery. AI-assisted design had expanded those concerns beyond the original product brief, and earlier explicit delivery/circuit preferences reinforced the direction. The design was implemented and validated before the user deliberately changed the accepted trade-off.
+
+Review rejected the extra runtime machinery because it duplicated n8n responsibilities, increased maintenance and made extension harder without a demonstrated MVP reliability requirement. The result was one n8n pipeline and configuration-only PostgreSQL, with explicit best-effort loss/duplicate limits. The [detailed correction entry](#2026-09-14-replace-duplicated-runtime-infrastructure-with-native-n8n-behavior) and [retrospective](final-reflection.md#6-most-important-course-correction) preserve both the stronger alternative and why simplicity was preferred. The earlier work is neither erased nor characterized as inherently wrong.
+
+### Selected examples
+
+| Claim or output challenged | What review established |
+| --- | --- |
+| [USGS identity and backlog assumptions](#2026-09-14-first-runtime-investigation-exposed-identity-and-backlog-assumptions) | Preferred IDs can change. [User simplification](#2026-09-14-user-simplified-the-first-runtime-design) deferred alias resolution, complex atomic SQL matching and extra dispatch metadata rather than accepting every proposed safeguard. |
+| [Native history/retry assumptions](#2026-09-14-replace-duplicated-runtime-infrastructure-with-native-n8n-behavior) | Separate within-batch filtering was required; cap failure is not rolling retention; actual five-attempt isolation needed native-engine verification. |
+| [Generated Docker context](#2026-09-14--exclude-host-build-output-from-docker-restorepublish) | Host restore output broke container publish. Context inspection and a rebuilt image validated the corrected allowlist. |
+| [Readiness versus access safety](#2026-09-14--successful-readiness-did-not-establish-safe-runtime-access) | Connectivity did not establish least privilege/TLS; ADR-007 records the subsequent explicit DEV exception. |
+| [Export reproducibility](#2026-09-14-workflow-export-tests-depended-on-ignored-session-files) | A locally passing exporter depended on ignored files; tracked fixtures and explicit snapshot input corrected it. |
+| [Email extension](#2026-09-15-final-review-of-email-extensibility-evidence) | The same routing boundary worked with one small name-projection exception, validated by fan-out/retry/capture evidence. |
+| [Integrated failure checks](#2026-09-14--integrated-validation-corrections) | Actual refused/blank-Host database cases exposed management 500 responses; narrow guards and red/green tests corrected them. |
+
+## 2026-09-15: Final review of Email extensibility evidence
+
+The final documentation reviewed the claim that Email extended the channel boundary without redesign. It looked credible because the runtime already separated matching from dispatch. The actual diff and [Email evidence](../evidence/reviews/2026-09-14-email-channel-validation.md) confirm unchanged source/normalizer/dedup behavior, schema and ASP.NET architecture, plus both-direction native retry isolation and SMTP4DEV capture.
+
+The narrower statement is accepted: selection and condition-matching behavior stayed unchanged, while SQL additionally projected the alert name and the evaluator passed it through for plain-text Email. A claim that every upstream byte remained identical would be false. A provider/sender configuration change still needs controlled validation; SMTP4DEV did not prove internet delivery. This is final evidence reconciliation, not a new send or a newly discovered runtime defect.
+
 ## 2026-09-14: Email export compatibility and safety guards needed narrow correction
 
 The first Email exporter guard rejected a valid n8n-saved Email node because n8n added a node `webhookId` and omitted default `resource`/`operation` fields. The correction was limited to the known transport metadata and verified default values. The exporter strips credential references and generated metadata, treats omitted defaults as equivalent, and still rejects unsafe transport parameters, pins and routing drift. A failing regression case was added before the correction; the final Node suite passed 24/24. [Email validation](../evidence/reviews/2026-09-14-email-channel-validation.md) records the resulting graph and checks.
